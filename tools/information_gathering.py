@@ -46,7 +46,7 @@ class PortScan(HackingTool):
     def run(self):
         clear_screen()
         console.print(Panel(Text(self.TITLE, justify="center"), style="bold magenta"))
-        target = Prompt.ask("[bold]Select a Target IP[/bold magenta]", default="", show_default=False)
+        target = Prompt.ask("[bold magenta]Select a Target IP[/bold magenta]", default="", show_default=False)
         subprocess.run(["sudo", "nmap", "-O", "-Pn", target])
 
 

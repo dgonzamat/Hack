@@ -1,2 +1,3 @@
 [codespell]
 skip = *.md
+ignore-words-list = profesional

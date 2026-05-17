@@ -1,0 +1,14 @@
+# Precios indicativos LATAM Chile — verificar con cotizacion local antes de uso comercial
+# Fuente: ONDAC Q1 2026 (ondac.com) — registro nacional de costos construccion
+# Fecha actualizacion: 2026-04
+# Valores en CLP por unidad, incluyen materiales + mano de obra basica
+partida,unidad,precio_clp,fuente,fecha
+pintura_interior_latex_2manos,m2,3500,ONDAC 2026Q1,2026-04
+pintura_exterior_latex_2manos,m2,5200,ONDAC 2026Q1,2026-04
+piso_ceramico_60x60_instalado,m2,28000,ONDAC 2026Q1,2026-04
+piso_flotante_8mm_instalado,m2,22000,ONDAC 2026Q1,2026-04
+cielo_volcanita_pintado,m2,18000,ONDAC 2026Q1,2026-04
+tabique_volcanita_doble_cara,m2,32000,ONDAC 2026Q1,2026-04
+puerta_simple_90cm_instalada,un,180000,ONDAC 2026Q1,2026-04
+puerta_doble_150cm_instalada,un,340000,ONDAC 2026Q1,2026-04
+ventana_corredera_aluminio,m2,95000,ONDAC 2026Q1,2026-04

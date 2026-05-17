@@ -3,3 +3,9 @@
 # flask is unused — removed
 # requests is unused at runtime — removed
 rich>=13.0.0
+
+# PoC Cubicación AI
+anthropic>=0.40,<1.0
+pymupdf>=1.24
+pillow>=10
+openpyxl>=3.1

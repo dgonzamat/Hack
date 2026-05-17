@@ -124,6 +124,7 @@ Devuelve ÚNICAMENTE JSON válido:
       "nombre": "DORMITORIO PRINCIPAL",
       "departamento": "DEPTO B1",
       "area_m2": 11.2,
+      "dimensiones_estimadas": {{"largo_m": 4.0, "ancho_m": 2.8}},
       "confianza": 0.95,
       "nota": "leída de etiqueta / estimada"
     }}
@@ -148,6 +149,7 @@ Reglas:
 - confianza 0.9+ = etiqueta explícita o tabla de áreas | 0.6-0.8 = estimado | <0.5 = muy incierto
 - Usa null si no puedes determinar — NUNCA inventes
 - Incluye recintos cortados en el borde con confianza reducida
+- dimensiones_estimadas es OPCIONAL: incluyelo solo si puedes leer cotas o estimar largo/ancho con confianza ≥ 0.6
 """
 
 
@@ -242,7 +244,9 @@ def llamar_claude(client: anthropic.Anthropic, b64: str, prompt: str) -> tuple[d
 # ─── Merge ────────────────────────────────────────────────────────────────────
 
 def _norm(s: str) -> str:
-    """Normaliza nombre: mayúsculas, sin guiones/barras, sin espacios extra."""
+    """Normaliza nombre: mayúsculas, sin guiones/barras, sin espacios extra.
+    Preserva puntos (necesario para 'DORM.PRINCIPAL').
+    """
     return re.sub(r"\s+", " ", s.upper().replace("-", " ").replace("/", " ")).strip()
 
 
@@ -688,13 +692,28 @@ def procesar_pagina(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PoC cubicación AI v4 — tiling + schedule + centro + re-pass")
+    parser = argparse.ArgumentParser(description="PoC cubicación AI v5 — cubicación + presupuesto + Excel")
     parser.add_argument("pdf")
     parser.add_argument("--paginas", default=None)
     parser.add_argument("--dpi", type=int, default=DPI_DEFAULT)
     parser.add_argument("--tiles", type=_parse_tiles, default=None,
                         help="Grid ej: 2x2. Auto si no se especifica.")
     parser.add_argument("--json", default=None)
+    parser.add_argument("--excel", default=None, help="Ruta de salida Excel con cubicación + presupuesto")
+    parser.add_argument("--precios", default="precios_cl.csv",
+                        help="CSV de precios unitarios (default precios_cl.csv)")
+    parser.add_argument("--altura", type=float, default=2.4,
+                        help="Altura piso-cielo global en metros (default 2.4)")
+    parser.add_argument("--alturas", default=None,
+                        help='Overrides JSON por keyword. Ej: \'{"BAÑO":2.2,"DORM":2.4}\'')
+    parser.add_argument("--gg-utilidad", type=float, default=0.25,
+                        help="Fracción de GG + Utilidad (default 0.25)")
+    parser.add_argument("--iva", type=float, default=0.19,
+                        help="Fracción IVA (default 0.19 Chile)")
+    parser.add_argument("--incluir-comunes", action="store_true",
+                        help="Incluye áreas comunes en cubicación (default false)")
+    parser.add_argument("--reattribute", action="store_true",
+                        help="Aplicar reattribution post-hoc usando schedule")
     args = parser.parse_args()
 
     ruta = Path(args.pdf)
@@ -713,7 +732,7 @@ def main() -> None:
     indices = [i for i in indices if 0 <= i < total_pags]
 
     tiles_str = f"{args.tiles[0]}×{args.tiles[1]}" if args.tiles else "auto"
-    print(f"\n📐 PoC Cubicación AI v4  [{MODELO}]")
+    print(f"\n📐 PoC Cubicación AI v5  [{MODELO}]")
     print(f"   {ruta.name}  |  págs {[i+1 for i in indices]}  |  {args.dpi}DPI  |  tiles={tiles_str}\n")
 
     client = _make_client()
@@ -732,6 +751,20 @@ def main() -> None:
             print(f"    ERROR: {e}")
             resultados.append({"error": str(e), "_pagina": idx + 1})
 
+    # Reattribution opcional ANTES del resumen para que los Δ reflejen el resultado final
+    if args.reattribute:
+        from cubicador import reattribute_by_schedule
+        for res in resultados:
+            if "error" in res:
+                continue
+            pag = res.get("_pagina")
+            sched = schedules.get(pag)
+            if sched:
+                log = reattribute_by_schedule(res, sched)
+                if log.get("aplicado"):
+                    print(f"  ↻ Reattribution pág {pag}: {log['rec']} {log['from']}→{log['to']} "
+                          f"(error {log['error_antes']:.1f}% → {log['error_despues']:.1f}%)")
+
     imprimir_resumen(resultados, schedules)
 
     if args.json:
@@ -739,6 +772,51 @@ def main() -> None:
         with open(args.json, "w", encoding="utf-8") as f:
             json.dump(out, f, ensure_ascii=False, indent=2)
         print(f"  JSON guardado: {args.json}\n")
+
+    if args.excel:
+        try:
+            from cubicador import cubicar
+            from presupuesto import cargar_precios, presupuestar, imprimir_presupuesto
+            from excel import exportar_excel
+        except ImportError as e:
+            print(f"  ERROR: módulos cubicador/presupuesto/excel no disponibles: {e}")
+            return
+
+        alturas_override = {}
+        if args.alturas:
+            try:
+                alturas_override = json.loads(args.alturas)
+            except json.JSONDecodeError as e:
+                print(f"  WARN: --alturas JSON inválido ({e}), ignorando")
+
+        ruta_precios = Path(args.precios)
+        if not ruta_precios.is_absolute():
+            ruta_precios = Path(__file__).parent / ruta_precios
+        if not ruta_precios.exists():
+            print(f"  ERROR: precios no encontrados en {ruta_precios}")
+            return
+        precios = cargar_precios(ruta_precios)
+
+        # Usar primera lámina para Excel (multi-página: agregar páginas extra como hojas adicionales en v6)
+        primera = next((r for r in resultados if "error" not in r), None)
+        if not primera:
+            print("  ERROR: ninguna lámina procesada exitosamente")
+            return
+
+        pag = primera.get("_pagina")
+        sched = schedules.get(pag)
+
+        cubicacion = cubicar(
+            primera,
+            altura_global=args.altura,
+            alturas_override=alturas_override,
+            incluir_comunes=args.incluir_comunes,
+        )
+        pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
+        imprimir_presupuesto(pres)
+
+        ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
+        print(f"  Excel guardado: {ruta_xlsx}\n")
 
 
 if __name__ == "__main__":

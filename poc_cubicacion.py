@@ -254,7 +254,14 @@ def main() -> None:
     print(f"   Modelo:   {MODELO}")
     print()
 
-    client = anthropic.Anthropic()
+    import os
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    token_file = os.environ.get("CLAUDE_SESSION_INGRESS_TOKEN_FILE")
+    if base_url and token_file and not os.environ.get("ANTHROPIC_API_KEY"):
+        session_token = Path(token_file).read_text().strip()
+        client = anthropic.Anthropic(auth_token=session_token, base_url=base_url)
+    else:
+        client = anthropic.Anthropic()
     resultados = []
 
     for idx in indices:

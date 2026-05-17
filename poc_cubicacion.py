@@ -220,14 +220,24 @@ def generar_tiles(img: Image.Image, nx: int, ny: int, overlap: float, add_center
 
 # ─── Claude ───────────────────────────────────────────────────────────────────
 
-def llamar_claude(client: anthropic.Anthropic, b64: str, prompt: str) -> tuple[dict, int, int]:
-    resp = client.messages.create(
-        model=MODELO, max_tokens=MAX_TOKENS,
-        messages=[{"role": "user", "content": [
-            {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}},
-            {"type": "text", "text": prompt},
-        ]}],
-    )
+def llamar_claude(client: anthropic.Anthropic, b64: str, prompt: str, max_reintentos: int = 3) -> tuple[dict, int, int]:
+    _retryable = (anthropic.APIConnectionError, anthropic.RateLimitError, anthropic.InternalServerError)
+    for intento in range(max_reintentos):
+        try:
+            resp = client.messages.create(
+                model=MODELO, max_tokens=MAX_TOKENS,
+                messages=[{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}},
+                    {"type": "text", "text": prompt},
+                ]}],
+            )
+            break
+        except _retryable as e:
+            if intento == max_reintentos - 1:
+                raise
+            espera = 2 ** (intento + 1)
+            print(f" [reintento {intento+1}/{max_reintentos-1} en {espera}s — {type(e).__name__}]", end="", flush=True)
+            time.sleep(espera)
     texto = resp.content[0].text.strip()
     if texto.startswith("```"):
         texto = texto.split("```")[1]
@@ -293,12 +303,17 @@ def merge_recintos(todos: list[dict]) -> list[dict]:
     De cada grupo conserva el de mayor confianza que tenga área.
     Si un recinto sin departamento coincide con uno que sí tiene, se prefiere el asignado.
     """
+    def _clave_sort(r: dict) -> tuple:
+        return (1 if r.get("departamento") else 0, 1 if r.get("area_m2") is not None else 0, r.get("confianza") or 0)
+
     grupos: list[list[dict]] = []
 
     for rec in todos:
         colocado = False
         for grupo in grupos:
-            if _recintos_misma_unidad(rec, grupo[0]):
+            # Comparar contra el miembro de mayor confianza del grupo, no el primero
+            representante = max(grupo, key=_clave_sort)
+            if _recintos_misma_unidad(rec, representante):
                 grupo.append(rec)
                 colocado = True
                 break
@@ -307,16 +322,20 @@ def merge_recintos(todos: list[dict]) -> list[dict]:
 
     resultado = []
     for grupo in grupos:
-        # Preferir: tiene_depto > tiene_area > confianza alta
-        mejor = sorted(
-            grupo,
-            key=lambda r: (
-                1 if r.get("departamento") else 0,
-                1 if r.get("area_m2") is not None else 0,
-                r.get("confianza") or 0,
-            ),
-            reverse=True,
-        )[0]
+        mejor = dict(sorted(grupo, key=_clave_sort, reverse=True)[0])
+
+        # Área ponderada: promedio pesado por confianza de todos los miembros con área
+        areas_conf = [(r["area_m2"], r.get("confianza") or 0) for r in grupo if r.get("area_m2") is not None]
+        if len(areas_conf) > 1:
+            peso_total = sum(c for _, c in areas_conf)
+            if peso_total > 0:
+                mejor["area_m2"] = round(sum(a * c for a, c in areas_conf) / peso_total, 1)
+            # Si los tiles coinciden en área (Δ < 10%), aumentar confianza ligeramente
+            vals = [a for a, _ in areas_conf]
+            spread = max(vals) - min(vals)
+            if (sum(vals) / len(vals)) > 0 and spread / (sum(vals) / len(vals)) < 0.10:
+                mejor["confianza"] = round(min(0.99, (mejor.get("confianza") or 0) + 0.05), 2)
+
         resultado.append(mejor)
 
     return sorted(resultado, key=lambda r: (_norm(r.get("departamento") or ""), _norm(r.get("nombre", ""))))
@@ -377,11 +396,15 @@ def merge_tiles(tile_results: list[dict], num_pag: int) -> dict:
 
     recintos_merged = merge_recintos(todos_recintos)
 
-    # Corregir solapamiento en vanos si hubo varios tiles
+    # Corregir solapamiento: vanos y muros acumulados desde tiles individuales
     if n_tiles_ok > 1:
         disc = 1 - TILE_OVERLAP
         puertas_map = {k: max(1, round(v * disc)) for k, v in puertas_map.items()}
         ventanas_map = {k: max(1, round(v * disc)) for k, v in ventanas_map.items()}
+        # Muros: cada segmento aparece en ~2 tiles (exterior) o más (interior).
+        # Factor conservador: dividir por 2 como mejor estimación.
+        ext_ml = ext_ml / 2 if ext_ml else ext_ml
+        int_ml = int_ml / 2 if int_ml else int_ml
 
     calidad = "alta" if "alta" in calidades else ("media" if "media" in calidades else "baja")
 

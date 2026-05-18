@@ -38,7 +38,7 @@ _VIALES = re.compile(
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
-_CONFIANZA_ML_MIN = 0.40
+_CONFIANZA_ML_MIN = 0.45
 
 _PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
 _clf_cache: object = None
@@ -65,15 +65,26 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", sin_acentos.upper().replace("-", " ").replace("/", " ")).strip()
 
 
+# Términos que el ML puede confundir con recintos habitables pero son siempre viales
+_VIAL_OVERRIDE = re.compile(
+    r"\b(SALA SER\b|SALA ELECTRICA METRO|SALA TECNICA METRO|LOCAL TECNICO METRO|"
+    r"SALA DE CONTROL METRO|SALA DE CONTROL TUNEL|SALA DE BOMBAS TUNEL|"
+    r"SALA DE VENTILACION METRO|SALA DE EMERGENCIA TUNEL)\b"
+)
+
+
 def clasificar_recinto(nombre: str) -> tuple[str, bool]:
     """
     Clasifica un recinto por su nombre. Devuelve (categoria, fue_heuristica).
-    Categorias: 'humedo' | 'seco' | 'exterior' | 'comun'
+    Categorias: 'humedo' | 'seco' | 'exterior' | 'comun' | 'vial'
     fue_heuristica=True si la confianza del modelo es baja (<40%) o se usó fallback regex.
 
-    Estrategia: ML (TF-IDF + LR) con fallback a regex si pkl no disponible.
+    Estrategia: override regex → ML (TF-IDF + LR) → fallback regex si pkl no disponible.
     """
     n = _norm(nombre)
+    # Override pre-ML para términos de infraestructura que el modelo confunde con recintos
+    if _VIAL_OVERRIDE.search(n):
+        return "vial", False
     modelo = _cargar_modelo()
     if modelo is not None:
         pred = modelo.predict([n])[0]

@@ -150,78 +150,221 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "CUARTO INSTALACIONES", "SALA TECNICA", "SALA MÁQUINAS",
          "CUARTO ELECTRICO", "SALA ELECTRICA"], "comun")
 
-    # ── VIAL (infraestructura civil) ──────────────────────────────────────────
-    # Calzada / pavimento
+    # ── VIAL (infraestructura civil urbana chilena) ───────────────────────────
+    # Fuentes: SERVIU Metropolitano, MOP Vialidad, Manual Metro Santiago
+
+    # Calzada / sección transversal (REDEVU MINVU / MOP)
     add(["CALZADA", "PISTA", "PISTA DE RODADO", "CARRIL",
          "CARRIL DERECHO", "CARRIL IZQUIERDO", "CARRIL CENTRAL",
          "CALZADA NORTE", "CALZADA SUR", "CALZADA ORIENTE", "CALZADA PONIENTE",
-         "VIA RAPIDA", "AUTOPISTA", "RUTA", "CAMINO",
+         "CALZADA PTE", "CALZADA OTE",
+         "VIA RAPIDA", "VIA EXPRESA", "VIA TRONCAL", "VIA COLECTORA",
+         "VIA LOCAL", "VIA DE SERVICIO",
+         "AUTOPISTA", "RUTA", "CAMINO", "CAMINO RURAL", "CAMINO VECINAL",
+         "PASAJE VEHICULAR", "CALLEJON",
          "PAVIMENTO", "PAVIMENTO ASFALTICO", "PAVIMENTO FLEXIBLE",
-         "PAVIMENTO RIGIDO", "CARPETA ASFALTICA"], "vial")
+         "PAVIMENTO RIGIDO", "CALZADA DE SERVICIO"], "vial")
     for n in ["1", "2", "3", "4"]:
-        add([f"PISTA {n}", f"CARRIL {n}", f"VIA {n}"], "vial")
+        add([f"PISTA {n}", f"CARRIL {n}", f"VIA {n}", f"TUBO {n}"], "vial")
 
-    # Aceras / ciclovias
-    add(["VEREDA", "ACERA", "BANQUETA", "ANDÉN",
-         "CICLOVÍA", "CICLOVIA", "PISTA BICI", "CICLOCARRIL",
+    # Pistas especiales
+    add(["PISTA DE CIRCULACION", "PISTA EXCLUSIVA BUS", "PISTA EXCLUSIVA TAXI",
+         "PISTA REVERSIBLE", "PISTA DE VIRAJE", "PISTA DE ACELERACION",
+         "PISTA DE DESACELERACION", "PISTA DE ADELANTAMIENTO",
+         "PISTA BICI", "CICLOCARRIL"], "vial")
+
+    # Aceras / ciclovías (SERVIU / MINVU Vialidad Ciclo-Inclusiva 2025)
+    add(["VEREDA", "VEREDA PONIENTE", "VEREDA ORIENTE", "VEREDA NORTE", "VEREDA SUR",
+         "ACERA", "BANQUETA",
+         "CICLOVÍA", "CICLOVIA", "CICLOBANDA", "CICLOPISTA", "CICLOACERA",
          "BERMA", "BERMA PAVIMENTADA", "BERMA DERECHA", "BERMA IZQUIERDA",
+         "BERMA DE ESTACIONAMIENTO",
          "ZONA PEATONAL", "PASEO PEATONAL", "PASEO",
-         "CALZADA PEATONAL", "SENDA PEATONAL"], "vial")
+         "CALZADA PEATONAL", "SENDA PEATONAL", "SENDA MULTIPROPÓSITO",
+         "FAJA DE PLANTACION", "FAJA VERDE",
+         "NIVEL DE CALZADA", "NIVEL DE VEREDA",
+         "LINEA OFICIAL", "LINEA DE EDIFICACION",
+         "PERALTE", "SOBREELEVACION"], "vial")
+
+    # Estacionamiento vial (en calle, diferente de estac. edificio)
+    add(["ESTACIONAMIENTO EN LINEA", "ESTACIONAMIENTO EN BATERIA",
+         "FRANJA DE ESTACIONAMIENTO VIAL"], "vial")
+
+    # Separadores / medianas
+    add(["MEDIANA", "BANDEJON", "BANDEJÓN", "BANDEJON CENTRAL", "BANDEJON LATERAL",
+         "SEPARADOR CENTRAL", "SEPARADOR VIAL", "ISLETA", "ISLA",
+         "CANTON VIAL"], "vial")
 
     # Intersecciones / rotondas
-    add(["ROTONDA", "GLORIETA", "INTERSECCION", "CRUCE",
-         "CRUCE PEATONAL", "PASO PEATONAL", "PASO DE CEBRA",
+    add(["ROTONDA", "GLORIETA", "INTERSECCION", "INTERSECCION A NIVEL",
+         "CRUCE", "CRUCE PEATONAL", "PASO PEATONAL", "PASO DE CEBRA",
          "BIFURCACION", "EMPALME", "ENLACE",
-         "ISLA", "ISLETA", "MEDIANA", "BANDEJÓN",
-         "CANTON", "SEPARADOR VIAL"], "vial")
+         "PASO BAJO NIVEL", "PBN", "PASO SOBRE NIVEL", "PSN",
+         "PASO DESNIVEL", "PASO A DESNIVEL", "PASO ELEVADO", "PASO SUPERIOR"], "vial")
 
-    # Cunetas / drenaje vial
-    add(["CUNETA", "CUNETA HORMIGON", "CUNETA REVESTIDA",
+    # Cunetas / drenaje vial (SERVIU Metropolitano / Manual Aguas Lluvias)
+    add(["CUNETA", "CUNETA HORMIGON", "CUNETA REVESTIDA", "CUNETA SIN REVESTIR",
+         "CUNETA TRIANGULAR", "CUNETA TRAPEZOIDAL",
+         "CUNETA DE PIE DE TALUD", "CUNETA DE CORONACION",
          "FOSO", "ZANJON", "CANAL DE DRENAJE", "CANAL VIAL",
-         "COLECTOR", "COLECTOR VIAL", "SUMIDERO",
-         "BAJADA DE AGUAS", "DESCOLE", "SOLERA"], "vial")
+         "CANAL REVESTIDO", "CANAL DE TIERRA",
+         "COLECTOR", "COLECTOR VIAL", "COLECTOR PRINCIPAL", "COLECTOR SECUNDARIO",
+         "COLECTOR DE AGUAS LLUVIAS", "COLECTOR CAJON",
+         "COLECTOR CAJON DE HORMIGON",
+         "SUMIDERO", "SUMIDERO DE REJA", "SUMIDERO TIPO SERVIU",
+         "REJILLA DE SUMIDERO",
+         "BAJADA DE AGUAS", "BAJADA DE AGUA PLUVIAL", "BAJADA A COLECTOR",
+         "DESCARGA PLUVIAL", "DESCOLE",
+         "SOLERA", "SOLERA TIPO A", "SOLERA TIPO B", "SOLERA NORMAL",
+         "SOLERILLA", "SOLERA DE CONFINAMIENTO"], "vial")
 
-    # Túneles
+    # Cámaras de drenaje (NCh 1623 / SERVIU)
+    add(["CAMARA DE INSPECCION", "CAMARA DE INSPECCION TIPO",
+         "POZO DE INSPECCION", "POZO DE VISITA", "POZO DE REGISTRO",
+         "CAMARA UNION", "CAMARA DE UNION", "CAMARA DE QUIEBRE",
+         "CAMARA DE CAIDA", "CAMARA DE REUNION", "CAMARA REPARTIDORA",
+         "CAMARA DE LIMPIEZA", "CAMARA DE REJAS",
+         "TAPA DE HORMIGON", "TAPA METALICA", "MARCO Y TAPA",
+         "RADIER DE CAMARA",
+         "OBRA DE ARTE", "OBRA DE PASO",
+         "DISIPADOR DE ENERGIA", "TRAMPA DE SOLIDOS",
+         "FOSA DE DECANTACION"], "vial")
+
+    # Túneles carreteros (MOP / Dirección de Vialidad)
     add(["TUNEL", "TÚNEL", "GALERIA", "GALERÍA",
          "PORTAL DE TUNEL", "PORTAL NORTE", "PORTAL SUR",
+         "PORTAL PONIENTE", "PORTAL ORIENTE",
+         "PORTAL DE ENTRADA", "PORTAL DE SALIDA",
+         "TUBO PONIENTE", "TUBO ORIENTE",
          "TUNEL CARRETERO", "TUNEL VIAL", "TUNEL PEATONAL",
-         "BOCA DE TUNEL", "EMBOQUILLADO",
-         "NICHO DE EMERGENCIA", "NICHO", "NICHO DE ESCAPE",
-         "CAMARA DE VENTILACION", "POZO DE VENTILACION",
+         "BOCA DE TUNEL", "EMBOQUILLADO", "EMBOCADURA",
+         "GALERIA DE BYPASS", "GALERIA DE CONEXION",
+         "GALERIA DE EVACUACION", "GALERIA DE RESCATE",
          "GALERIA DE SERVICIO", "GALERIA DE EMERGENCIA",
+         "NICHO DE EMERGENCIA", "NICHO SOS",
+         "NICHO DE EXTINTOR", "NICHO DE TELEFONO", "NICHO DE ESCAPE",
+         "CAMARA DE VENTILACION", "CAMARA DE VENTILACION LONGITUDINAL",
+         "POZO DE VENTILACION", "SALA DE VENTILADORES",
          "CAMARA DE BOMBEO TUNEL", "CAMARA DE CONTROL TUNEL",
+         "CENTRO DE CONTROL DE TUNEL",
+         "ENSANCHE DE TUNEL", "APARTADERO DE TUNEL",
          "ZONA DE ESCAPE", "VIA DE ESCAPE",
+         "ZONA DE SEGURIDAD TUNEL", "ACERA DE TUNEL",
          "REFUGIO DE EMERGENCIA", "REFUGIO"], "vial")
 
-    # Puentes / estructuras viales
-    add(["PUENTE", "VIADUCTO", "PASO ELEVADO", "PASO SUPERIOR",
-         "PASO INFERIOR", "PASO DESNIVEL", "PASO A DESNIVEL",
+    # Elementos estructurales de túneles
+    add(["BOVEDA", "BÓVEDA", "CLAVE DE LA BOVEDA",
+         "HASTIAL", "HASTIAL IZQUIERDO", "HASTIAL DERECHO",
+         "CONTRABOVEDA", "SOLERA DE TUNEL",
+         "SOSTENIMIENTO", "SHOTCRETE", "HORMIGON PROYECTADO",
+         "PERNO DE ROCA", "BULON DE ANCLAJE", "MALLA ELECTROSOLDADA TUNEL",
+         "ARCO METALICO", "CERCHA METALICA",
+         "REVESTIMIENTO DEFINITIVO", "REVESTIMIENTO PRIMARIO",
+         "MEMBRANA IMPERMEABILIZANTE", "IMPERMEABILIZACION DE TUNEL",
+         "DRENAJE DE TUNEL", "COLECTOR DE TUNEL",
+         "CAMARA DE RETAGUARDIA", "CAMARA DE AVANCE"], "vial")
+
+    # Puentes / estructuras viales (MOP)
+    add(["PUENTE", "VIADUCTO", "PASO INFERIOR", "PASO DESNIVEL",
          "TABLERO", "TABLERO DE PUENTE", "LOSA DE PUENTE",
          "MURO DE ALA", "MURO TESTA", "ESTRIBO",
          "PILA", "PILON", "APOYO DE PUENTE",
          "BARANDADO", "BARANDA VIAL"], "vial")
 
+    # Subestructura de puentes
+    add(["ESTRIBO IZQUIERDO", "ESTRIBO DERECHO",
+         "PILA TIPO COLUMNA", "PILA MARTILLO", "PILA CIRCULAR", "PILA RECTANGULAR",
+         "ZAPATA DE PUENTE", "LOSA DE CIMENTACION",
+         "PILOTES DE HORMIGON", "PILOTES BARRENADOS",
+         "CABEZAL DE PILOTES", "ALA DEL ESTRIBO", "MURO TESTERO",
+         "LOSA DE APROXIMACION", "LOSA DE TRANSICION",
+         "VIGA DE CORONAMIENTO PUENTE"], "vial")
+
+    # Superestructura / tablero de puentes
+    add(["VIGA PRINCIPAL", "VIGA T PREFABRICADA", "VIGA I PRETENSADA",
+         "VIGA CAJON", "VIGA TRANSVERSAL", "VIGA DE BORDE",
+         "DIAFRAGMA", "DIAFRAGMA INTERMEDIO", "DIAFRAGMA DE EXTREMO",
+         "LOSA DE TABLERO", "BARANDA DE HORMIGON", "PARAPETO PUENTE",
+         "JUNTA DE DILATACION", "APOYO ELASTOMERICO", "NEOPRENO DE APOYO",
+         "CARPETA ASFALTICA DE PUENTE", "IMPERMEABILIZACION DE TABLERO",
+         "SUMIDERO DE PUENTE", "TUBO BAJANTE PUENTE"], "vial")
+
     # Muros de contención / taludes
     add(["MURO DE CONTENCION", "MURO DE CONTENCIÓN",
          "MURO DE SOSTENIMIENTO", "MURO PANTALLA",
+         "MURO DE GRAVEDAD", "MURO EN VOLADIZO",
+         "MURO CON CONTRAFUERTES", "MURO DE MAMPOSTERIA",
+         "MURO DE PIEDRA", "MURO SECO",
          "TALUD", "TALUD DE CORTE", "TALUD DE RELLENO",
-         "TERRAPLÉN", "TERRAPLEN", "BANQUETA DE TALUD",
-         "CUNETA DE PIE DE TALUD", "CUNETA DE CORONACION"], "vial")
+         "TERRAPLÉN", "TERRAPLEN", "BANQUETA DE TALUD"], "vial")
 
-    # Señalización / infraestructura de apoyo
+    # Contención con técnicas especiales
+    add(["MURO DE GAVIONES", "GAVION", "COLCHON DE GAVIONES",
+         "PANTALLA DE PILOTES", "PARED BERLIN", "MURO BERLINES",
+         "TABLESTACAS", "TABLESTACAS DE ACERO",
+         "MICROPILOTES", "CORTINA DE MICROPILOTES",
+         "SOIL NAILING", "PERNO DE SUELO",
+         "ANCLAJE ACTIVO", "ANCLAJE PASIVO", "TIRANTE DE ANCLAJE",
+         "ENTIBACION", "TABLON DE ENTIBACION",
+         "ESCOLLERA", "MURO DE ESCOLLERA",
+         "MURO DE TIERRA ARMADA", "SUELO REFORZADO", "GEOMALLA",
+         "GEOTEXTIL", "GEODREN",
+         "DREN HORIZONTAL", "DREN SUBHORIZONTAL", "TUBO DREN",
+         "ZANJA DRENANTE"], "vial")
+
+    # Capas de pavimento (SERVIU Metropolitano / MOV SERVIU 2018)
+    add(["CARPETA ASFALTICA", "MEZCLA ASFALTICA EN CALIENTE",
+         "ASFALTO MODIFICADO EN CALIENTE",
+         "CAPA DE RODADO", "CAPA DE RODADURA", "CAPA DE DESGASTE",
+         "BASE GRANULAR", "BASE ESTABILIZADA",
+         "BASE TRATADA CON CEMENTO",
+         "SUB-BASE GRANULAR", "SUBRASANTE", "SUBRASANTE MEJORADA",
+         "MATERIAL SELECCIONADO", "RELLENO ESTRUCTURAL",
+         "RIEGO DE IMPRIMACION", "RIEGO DE LIGA",
+         "SELLO ASFALTICO", "MICROPAVIMENTO",
+         "TRATAMIENTO SUPERFICIAL BICAPA",
+         "LOSA DE HORMIGON CALZADA", "BARRAS PASAJUNTAS",
+         "JUNTA DE CONTRACCION VIAL", "JUNTA DE EXPANSION VIAL"], "vial")
+
+    # Vereda / baldosas SERVIU
+    add(["BALDOSA PODO-TACTIL", "BALDOSA DE ALERTA", "BALDOSA DE GUIA",
+         "LOSETA PODO-TACTIL", "RAMPA PEATONAL",
+         "RAMPA PARA DISCAPACITADOS", "REBAJE DE SOLERA", "PISO TACTIL",
+         "HORMIGON POBRE VEREDA", "CAMA DE ARENA", "CAMA DE RIPIO"], "vial")
+
+    # Señalización / apoyo vial
     add(["ÁREA DE SERVICIO", "AREA DE SERVICIO",
          "PLAZA DE PEAJE", "CASETA DE PEAJE",
          "ESTACION DE PEAJE", "PÓRTICO", "PORTICO",
          "AREA DE DESCANSO", "MIRADOR",
-         "SALA DE CONTROL VIAL", "CASETA DE CONTROL",
-         "CENTRO DE CONTROL DE TUNEL"], "vial")
+         "SALA DE CONTROL VIAL", "CASETA DE CONTROL"], "vial")
 
-    # Metro / ferroviario
-    add(["ANDÉN METRO", "ANDEN METRO", "PLATAFORMA",
+    # Metro Santiago — andenes y zonas operacionales (Manual Metro 2016 / L7 EIA)
+    add(["ANDÉN METRO", "ANDÉN", "ANDEN", "ANDEN METRO",
+         "ANDÉN PONIENTE", "ANDÉN ORIENTE",
+         "ANDÉN LATERAL", "ANDÉN CENTRAL", "PLATAFORMA METRO",
+         "MEZZANINE", "MESANINA", "NIVEL MEZZANINE", "NIVEL ANDEN",
+         "NIVEL ACCESO METRO", "PUENTE MESANINA",
+         "ZONA PAGADA", "ZONA NO PAGADA",
+         "ACCESO METRO PONIENTE", "ACCESO METRO ORIENTE",
+         "GALERIA DE ACCESO METRO", "POZO DE ACCESO METRO",
+         "PIQUE DE VENTILACION METRO", "CAMARA DE VENTILACION METRO",
+         "SALA SER", "SALA SER METRO", "SALA SER ESTACION",
+         "SER METRO", "SUBESTACION RECTIFICADORA", "SUBESTACION DE RECTIFICACION",
+         "SALA CCI", "SALA CCI METRO", "CCI METRO",
+         "SALA DE TELECOMUNICACIONES METRO",
+         "SALA DE CLIMATIZACION METRO", "SALA DE TABLEROS ELECTRICOS METRO",
          "TUNEL METRO", "TUNEL FERROVIARIO", "VIA FERREA",
-         "ESTACION", "ESTACIÓN", "MEZZANINE", "CONCOURSE",
-         "SALA DE MAQUINAS METRO", "CAMARA TECNICA METRO",
-         "POZO DE ACCESO", "POZO TECNICO"], "vial")
+         "ESTACION METRO", "TRAMO SUBTERRANEO", "TRAMO ELEVADO",
+         "GALERIA AUXILIAR", "PIQUE DE CONSTRUCCION",
+         "INTERESTACION", "PLATAFORMA FERROVIARIA"], "vial")
+
+    # Vía férrea / ferroviario
+    add(["TROCHA", "BALASTRO", "TRAVIESA DE HORMIGON",
+         "VIA EN PLACA", "LOSA FLOTANTE FERROVIARIA",
+         "TERCER RIEL", "CARRIL CONDUCTOR",
+         "ZONA DE MANTENIMIENTO VIA", "CAMARA DE CABLES",
+         "TRINCHERA", "ZANJA DE CABLES FERROVIARIA"], "vial")
 
     return datos
 
@@ -253,7 +396,7 @@ def main() -> None:
     y = [cat for _, cat in datos]
 
     print(f"Dataset: {len(datos)} ejemplos")
-    for cat in ("humedo", "seco", "exterior", "comun"):
+    for cat in ("humedo", "seco", "exterior", "comun", "vial"):
         n = y.count(cat)
         print(f"  {cat:<10} {n:>4} ({n/len(y)*100:.0f}%)")
 
@@ -295,7 +438,7 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
         ("HALL DISTRIBUIDOR", "comun"),
         ("SHAFT", "comun"),
         ("SUM", "comun"),
-        # Civil / vial
+        # Civil / vial — básico
         ("CALZADA", "vial"),
         ("PISTA 1", "vial"),
         ("VEREDA", "vial"),
@@ -310,6 +453,43 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
         ("PLAZA DE PEAJE", "vial"),
         ("ANDEN METRO", "vial"),
         ("TUNEL METRO", "vial"),
+        # Civil / vial — terminología chilena oficial
+        ("CAMARA DE INSPECCION", "vial"),
+        ("POZO DE VISITA", "vial"),
+        ("COLECTOR DE AGUAS LLUVIAS", "vial"),
+        ("SUMIDERO TIPO SERVIU", "vial"),
+        ("SOLERA TIPO A", "vial"),
+        ("SOLERILLA", "vial"),
+        ("BANDEJÓN CENTRAL", "vial"),
+        ("CICLOBANDA", "vial"),
+        ("VIA EXPRESA", "vial"),
+        ("PISTA EXCLUSIVA BUS", "vial"),
+        ("PORTAL PONIENTE", "vial"),
+        ("BOVEDA", "vial"),
+        ("HASTIAL DERECHO", "vial"),
+        ("SHOTCRETE", "vial"),
+        ("ESTRIBO IZQUIERDO", "vial"),
+        ("LOSA DE TABLERO", "vial"),
+        ("DIAFRAGMA INTERMEDIO", "vial"),
+        ("MURO DE GAVIONES", "vial"),
+        ("MICROPILOTES", "vial"),
+        ("SOIL NAILING", "vial"),
+        ("GEOTEXTIL", "vial"),
+        ("CARPETA ASFALTICA", "vial"),
+        ("BASE GRANULAR", "vial"),
+        ("SUB-BASE GRANULAR", "vial"),
+        ("RIEGO DE IMPRIMACION", "vial"),
+        ("BALDOSA PODO-TACTIL", "vial"),
+        ("RAMPA PEATONAL", "vial"),
+        ("SALA SER", "vial"),
+        ("NIVEL MEZZANINE", "vial"),
+        ("ZONA PAGADA", "vial"),
+        ("TRAMO SUBTERRANEO", "vial"),
+        ("BALASTRO", "vial"),
+        ("TRAVIESA DE HORMIGON", "vial"),
+        ("GALERIA DE EVACUACION", "vial"),
+        ("CAMARA DE VENTILACION LONGITUDINAL", "vial"),
+        ("TUBO PONIENTE", "vial"),
     ]
     print("\nEdge cases:")
     ok = errores = 0

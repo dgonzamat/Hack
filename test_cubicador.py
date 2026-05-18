@@ -825,6 +825,12 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "revegetacion_hidrosiembra" in partidas
 
+    def test_mediana_central_sin_qualifier_genera_revegetacion(self):
+        # MEDIANA sin tipo → default revegetacion (pasto/arbustos)
+        res = cubicar_vial(self._vial("MEDIANA CENTRAL KM5", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "revegetacion_hidrosiembra" in partidas
+
     def test_mediana_pavimentada_genera_adoquin(self):
         res = cubicar_vial(self._vial("MEDIANA PAVIMENTADA ADOQUIN", 400.0))
         partidas = {p["partida"]: p for p in res}

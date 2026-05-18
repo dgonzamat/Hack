@@ -38,7 +38,7 @@ _VIALES = re.compile(
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
-_CONFIANZA_ML_MIN = 0.45
+_CONFIANZA_ML_MIN = 0.60
 
 _PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
 _clf_cache: object = None

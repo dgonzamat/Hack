@@ -108,10 +108,10 @@ class TestClasificarRecinto:
         assert cat == "seco"
 
     def test_nombre_desconocido_heuristico(self):
-        # Un nombre completamente desconocido debe tener confianza baja → fue_heuristica
-        cat, heur = clasificar_recinto("ZAGUÁN XKQZ")
+        # Nombre inventado sin señal lingüística → confianza ML < 0.60 → fue_heuristica
+        cat, heur = clasificar_recinto("AAABBB XYZQ99")
         assert cat in ("seco", "comun", "humedo", "exterior", "vial")
-        assert heur  # confianza ML < 0.40 para nombre absurdo
+        assert heur
 
     def test_vial_calzada(self):
         cat, _ = clasificar_recinto("CALZADA")

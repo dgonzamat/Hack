@@ -1111,6 +1111,67 @@ class TestCubicarVial:
         assert "carpeta_asfaltica_e60mm" in partidas
         assert "base_granular_e200mm" in partidas
 
+    # ── Imprimacion y riego (conservacion superficial) ────────────────────────
+
+    def test_imprimacion_asfaltica_solo_carpeta(self):
+        """IMPRIMACION ASFALTICA → carpeta (conservacion, sin excavar base)."""
+        res = cubicar_vial(self._vial("IMPRIMACION ASFALTICA BASE GRANULAR", 5000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" not in partidas
+        assert "excavacion_tierra_comun" not in partidas
+
+    def test_riego_de_adherencia_sin_excavacion(self):
+        res = cubicar_vial(self._vial("RIEGO DE ADHERENCIA ENTRE CAPAS", 3000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "excavacion_tierra_comun" not in partidas
+
+    # ── Drenaje subterraneo ───────────────────────────────────────────────────
+
+    def test_subdren_transversal_genera_colector(self):
+        """SUBDREN TRANSVERSAL → colector (tuberia perforada = PVC)."""
+        res = cubicar_vial(self._vial("SUBDREN TRANSVERSAL CALZADA KM8", 120.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+
+    def test_drene_longitudinal_genera_colector(self):
+        res = cubicar_vial(self._vial("DRENE LONGITUDINAL BERMA", 80.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+
+    def test_contracuneta_genera_canal(self):
+        """CONTRACUNETA (drenaje coronamiento corte) → canal_hormigon_revestido."""
+        res = cubicar_vial(self._vial("CONTRACUNETA CORTE TALUD KM3", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "canal_hormigon_revestido" in partidas
+
+    # ── Muro — nuevas tipologias ───────────────────────────────────────────────
+
+    def test_hormigon_ciclopeo_genera_muro(self):
+        """HORMIGON CICLOPEO (masa de hormigon) → muro all-inclusive."""
+        res = cubicar_vial(self._vial("MURO HORMIGON CICLOPEO BASE ESTRIBO", 150.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_perno_de_roca_genera_muro(self):
+        res = cubicar_vial(self._vial("PERNO DE ROCA TALUD CORTE KM12", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    # ── Terraplen — nuevas keywords ───────────────────────────────────────────
+
+    def test_cama_de_arena_genera_terraplen(self):
+        """CAMA DE ARENA TUBERIA → terraplen (material de apoyo compactado)."""
+        res = cubicar_vial(self._vial("CAMA DE ARENA TUBERIA DRENAJE", 320.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+
+    def test_grava_nivelacion_genera_terraplen_granular(self):
+        res = cubicar_vial(self._vial("GRAVA DE NIVELACION SUBBASE", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

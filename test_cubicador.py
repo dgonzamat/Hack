@@ -1077,25 +1077,29 @@ class TestCubicarVial:
 
     # ── Conservacion ampliada (micropavimento, sello) ─────────────────────────
 
-    def test_micropavimento_solo_carpeta(self):
-        """MICROPAVIMENTO → conservacion: solo carpeta, sin base ni excavacion."""
+    def test_micropavimento_partida_propia(self):
+        """MICROPAVIMENTO → micropavimento_e25mm (precio ~$4k/m², no $8.5k carpeta)."""
         res = cubicar_vial(self._vial("MICROPAVIMENTO E=25MM KM3", 2000.0))
         partidas = {p["partida"]: p for p in res}
-        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "micropavimento_e25mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas, "no debe cobrar precio carpeta"
         assert "base_granular_e200mm" not in partidas, "micropavimento no repone base"
         assert "excavacion_tierra_comun" not in partidas
 
-    def test_sello_grietas_solo_carpeta(self):
-        """SELLO DE GRIETAS → conservacion: solo carpeta, sin excavacion."""
+    def test_sello_grietas_partida_propia(self):
+        """SELLO DE GRIETAS → sello_grietas_asfaltico (precio ~$1.5k/m², no $8.5k)."""
         res = cubicar_vial(self._vial("SELLO DE GRIETAS CALZADA KM8", 800.0))
         partidas = {p["partida"]: p for p in res}
-        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "sello_grietas_asfaltico" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas, "no debe cobrar precio carpeta"
         assert "excavacion_tierra_comun" not in partidas
 
-    def test_lechada_asfaltica_solo_carpeta(self):
+    def test_lechada_asfaltica_genera_micropavimento(self):
+        """LECHADA ASFALTICA → micropavimento_e25mm (capa delgada, precio similar)."""
         res = cubicar_vial(self._vial("LECHADA ASFALTICA TIPO III KM12", 1500.0))
         partidas = {p["partida"]: p for p in res}
-        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "micropavimento_e25mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas
         assert "base_granular_e200mm" not in partidas
 
     # ── Calzada — nuevas keywords capas ──────────────────────────────────────

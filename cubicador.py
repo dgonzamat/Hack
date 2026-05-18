@@ -334,7 +334,7 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
     Si no se provee, usa dimensiones tipicas MOP/Metro (ver _DEFAULT_SECCIONES).
 
     Categorias y formulas (29 activas):
-    - calzada flexible    → carpeta + base + sub-base + subrasante (m²) + excav (m³)
+    - calzada flexible    → carpeta/micropavimento/sello + base + sub-base + subrasante (m²) + excav (m³)
     - calzada_rigida      → pavimento hormigon + sub-base (m²) + excav (m³)
     - calzada_granular    → base + sub-base (m²) + excav (m³); sin carpeta asfaltica
     - vereda / anden      → acera hormigon + base (m²)
@@ -381,13 +381,25 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             pav = sec["pavimento_flexible"]
             cap = pav["carpeta_asfaltica_m"]
             n_norm = _norm(nombre)
-            # Conservacion: solo carpeta (no excavar ni reponer base existente)
+            # Tratamientos superficiales de conservacion: partida y precio diferenciado
+            _RE_MICROPAV = re.compile(r"\b(MICROPAVIMENTO|LECHADA ASFALTICA)\b")
+            _RE_SELLO = re.compile(r"\b(SELLO DE GRIETAS|SELLO ASFALTICO)\b")
+            if _RE_SELLO.search(n_norm):
+                partida_sup = "sello_grietas_asfaltico"
+                desc_sup = "Sello de grietas asfaltico"
+            elif _RE_MICROPAV.search(n_norm):
+                partida_sup = "micropavimento_e25mm"
+                desc_sup = "Micropavimento e=25mm"
+            else:
+                partida_sup = "carpeta_asfaltica_e60mm"
+                desc_sup = f"Carpeta asfaltica e={int(cap*1000)}mm"
+            # Conservacion: solo superficie (no excavar ni reponer base existente)
             es_conservacion = bool(re.search(
                 r"\b(RECARPETEO|BACHEO|RIEGO DE LIGA|CONSERVACION|MICROPAVIMENTO|LECHADA ASFALTICA|SELLO DE GRIETAS|SELLO ASFALTICO)\b",
                 n_norm,
             ))
-            _acum(acc, "carpeta_asfaltica_e60mm", "m2", area,
-                  f"Carpeta asfaltica e={int(cap*1000)}mm", nombre,
+            _acum(acc, partida_sup, "m2", area,
+                  desc_sup, nombre,
                   f"area directa; e={cap*1000:.0f} mm")
             if not es_conservacion:
                 base = pav["base_granular_m"]

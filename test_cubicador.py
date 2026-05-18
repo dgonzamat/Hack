@@ -869,6 +869,17 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "excavacion_en_corte" in partidas
 
+    def test_geotextil_standalone_genera_m2(self):
+        res = cubicar_vial(self._vial("GEOTEXTIL SEPARACION BASE GRANULAR", 2000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "geotextil_drenaje" in partidas
+        assert partidas["geotextil_drenaje"]["cantidad"] == pytest.approx(2000.0)
+
+    def test_geomalla_genera_geotextil(self):
+        res = cubicar_vial(self._vial("GEOMALLA BIAXIAL TALUD", 1500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "geotextil_drenaje" in partidas
+
     def test_mediana_pavimentada_genera_adoquin(self):
         res = cubicar_vial(self._vial("MEDIANA PAVIMENTADA ADOQUIN", 400.0))
         partidas = {p["partida"]: p for p in res}

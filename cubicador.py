@@ -250,6 +250,7 @@ _VIAL_CATS = [
     (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
     (re.compile(r"\b(POZO DE INSPECCION|CAMARA DE INSPECCION|POZO VISITA|SUMIDERO|POZO AGUAS)\b"), "pozo_inspeccion"),
     (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO|SUBBASE TRATADA|SUBRASANTE TRATADA)\b"), "mejoramiento_suelo"),
+    (re.compile(r"\b(GEOTEXTIL|GEOMALLA|GEOCOMPUESTO|GEOCOMPOSITE|GEOSINTETICO)\b"), "geotextil"),
     (re.compile(r"\b(REVEGETACION|HIDROSIEMBRA|COBERTURA VEGETAL|SIEMBRA TALUD|MEDIANA VERDE|MEDIANA CENTRAL|SEPARADOR VEGETAL|SEPARADOR CENTRAL)\b"), "revegetacion"),
     # ── Movimiento de tierras y drenaje (antes que CALZADA)
     (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|RELLENO ESTRUCTURAL|RELLENO ZANJA|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
@@ -615,6 +616,10 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "guardavia_flexible_w", "ml", area / ancho,
                   "Guardavia flexible W-beam doble ola", nombre,
                   f"area / {ancho:.2f} m ancho planta")
+
+        elif cat == "geotextil":
+            _acum(acc, "geotextil_drenaje", "m2", area,
+                  "Geotextil / geomalla separacion-drenaje", nombre, "area directa")
 
         elif cat == "revegetacion":
             _acum(acc, "revegetacion_hidrosiembra", "m2", area,

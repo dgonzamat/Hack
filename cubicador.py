@@ -6,10 +6,12 @@ Salida: lista de partidas con cantidad, unidad y desglose por recinto.
 """
 
 import math
+import pickle
 import re
+from pathlib import Path
 from typing import Optional
 
-# ─── Clasificacion de recintos (regex con word boundaries) ────────────────────
+# ─── Clasificacion de recintos ────────────────────────────────────────────────
 
 _HUMEDOS = re.compile(r"\b(BAÑO|BANO|COCINA|LOGIA|LAVANDER|WC|TOILET)\b")
 _SECOS = re.compile(
@@ -19,6 +21,27 @@ _EXTERIORES = re.compile(r"\b(TERRAZA|BALCON|PATIO|JARDIN)\b")
 _COMUNES = re.compile(
     r"\b(HALL|PASILLO|CORREDOR|ESCALERA|ASCENSOR|DUCTO|SHAFT|RECEP|CIRCULACION)\b"
 )
+
+# Umbral de probabilidad bajo el cual se marca fue_heuristica=True
+_CONFIANZA_ML_MIN = 0.40
+
+_PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
+_clf_cache: object = None
+_clf_intentado = False
+
+
+def _cargar_modelo() -> object | None:
+    global _clf_cache, _clf_intentado
+    if _clf_intentado:
+        return _clf_cache
+    _clf_intentado = True
+    if _PKL_PATH.exists():
+        try:
+            with open(_PKL_PATH, "rb") as f:
+                _clf_cache = pickle.load(f)
+        except Exception:
+            pass
+    return _clf_cache
 
 
 def _norm(s: str) -> str:
@@ -30,9 +53,18 @@ def clasificar_recinto(nombre: str) -> tuple[str, bool]:
     """
     Clasifica un recinto por su nombre. Devuelve (categoria, fue_heuristica).
     Categorias: 'humedo' | 'seco' | 'exterior' | 'comun'
-    fue_heuristica=True si se usó default por no matchear ningun patron.
+    fue_heuristica=True si la confianza del modelo es baja (<40%) o se usó fallback regex.
+
+    Estrategia: ML (TF-IDF + LR) con fallback a regex si pkl no disponible.
     """
     n = _norm(nombre)
+    modelo = _cargar_modelo()
+    if modelo is not None:
+        pred = modelo.predict([n])[0]
+        proba = float(modelo.predict_proba([n]).max())
+        return pred, proba < _CONFIANZA_ML_MIN
+
+    # Fallback regex (cuando no hay pkl)
     if _HUMEDOS.search(n):
         return "humedo", False
     if _EXTERIORES.search(n):
@@ -41,7 +73,7 @@ def clasificar_recinto(nombre: str) -> tuple[str, bool]:
         return "comun", False
     if _SECOS.search(n):
         return "seco", False
-    return "seco", True  # default heuristico
+    return "seco", True
 
 
 # ─── Estimacion de geometria ──────────────────────────────────────────────────

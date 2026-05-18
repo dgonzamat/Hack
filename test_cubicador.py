@@ -102,9 +102,15 @@ class TestClasificarRecinto:
         cat, _ = clasificar_recinto("ESCALERA")
         assert cat == "comun"
 
-    def test_default_seco_heuristico(self):
-        cat, heur = clasificar_recinto("BODEGA")
-        assert cat == "seco" and heur
+    def test_bodega_es_seco(self):
+        cat, _ = clasificar_recinto("BODEGA")
+        assert cat == "seco"
+
+    def test_nombre_desconocido_heuristico(self):
+        # Un nombre completamente desconocido debe tener confianza baja → fue_heuristica
+        cat, heur = clasificar_recinto("ZAGUÁN XKQZ")
+        assert cat in ("seco", "comun", "humedo", "exterior")
+        assert heur  # confianza ML < 0.40 para nombre absurdo
 
     def test_word_boundary_no_falso_positivo(self):
         # "TALLER" no debe matchear "HALL" (sin word boundary sería un bug)

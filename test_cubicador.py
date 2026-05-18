@@ -441,15 +441,15 @@ class TestCubicarVial:
         assert "moldaje_tablero" in partidas
         assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(275.0, abs=1.0)
 
-    def test_muro_genera_cuatro_partidas(self):
-        """Muro → cara m2 + hormigon m3 + acero kg + moldaje m2."""
+    def test_muro_genera_precio_all_inclusive(self):
+        """Muro → solo muro_contencion_hormigon m2 (all-inclusive, sin doble conteo)."""
         res = cubicar_vial(self._vial("MURO DE CONTENCION", 45.0))
         partidas = {p["partida"]: p for p in res}
         assert "muro_contencion_hormigon" in partidas
-        assert "hormigon_armado_H30" in partidas
-        assert "acero_refuerzo_a630" in partidas
-        assert "moldaje_muro" in partidas
         assert partidas["muro_contencion_hormigon"]["cantidad"] == pytest.approx(45.0, abs=0.1)
+        # No componentes separados — evita doble conteo con precio all-inclusive
+        assert "hormigon_armado_H30" not in partidas
+        assert "moldaje_muro" not in partidas
 
     def test_galeria_usa_seccion_propia(self):
         """GALERIA usa sec['galeria'] (3.5×3.5) independiente de sec['tunel']."""
@@ -698,20 +698,13 @@ class TestCubicarVial:
 
     # ── Zapata muro (opcional) ────────────────────────────────────────────────
 
-    def test_muro_sin_zapata_por_defecto(self):
-        """zapata_factor=0 por defecto: no agrega volumen extra al hormigon."""
+    def test_muro_solo_m2_all_inclusive(self):
+        """Muro usa precio all-inclusive: solo muro_contencion_hormigon, sin hormigon separado."""
         res = cubicar_vial(self._vial("MURO DE CONTENCION", 100.0))
         partidas = {p["partida"]: p for p in res}
-        # solo vol_muro = 100 × 0.40 = 40 m³
-        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(40.0, abs=0.5)
-
-    def test_muro_con_zapata(self):
-        """zapata_factor=0.30 agrega 30% extra al hormigon."""
-        sec = {"muro_contencion": {"espesor_m": 0.40, "kg_acero_por_m3": 80, "zapata_factor": 0.30}}
-        res = cubicar_vial(self._vial("MURO DE CONTENCION", 100.0), secciones=sec)
-        partidas = {p["partida"]: p for p in res}
-        # muro: 100×0.40=40 m³; zapata: 40×0.30=12 m³; total=52 m³
-        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(52.0, abs=0.5)
+        assert "muro_contencion_hormigon" in partidas
+        assert partidas["muro_contencion_hormigon"]["cantidad"] == pytest.approx(100.0, abs=0.1)
+        assert "hormigon_armado_H30" not in partidas
 
     def test_muro_con_geotextil(self):
         """geotextil_factor=1.1 agrega partida geotextil_drenaje."""

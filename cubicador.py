@@ -508,29 +508,11 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
 
         elif cat == "muro":
             s = sec["muro_contencion"]
-            esp = s["espesor_m"]
-            kg_ac = s["kg_acero_por_m3"]
-            zap_factor = s.get("zapata_factor", 0.0)
-            v_muro = area * esp
+            # All-inclusive m2: precio ONDAC incluye hormigon + acero + moldaje + colocacion
+            # Evita doble conteo vs sumar componentes por separado
             _acum(acc, "muro_contencion_hormigon", "m2", area,
-                  f"Muro de contencion hormigon e={int(esp*100)}cm", nombre,
-                  f"area cara del muro; e={esp:.2f} m")
-            _acum(acc, "hormigon_armado_H30", "m3", v_muro,
-                  f"Hormigon armado H30 muro e={int(esp*100)}cm", nombre,
-                  f"area × {esp:.2f} m espesor — ajustar en secciones_civiles.yaml")
-            _acum(acc, "acero_refuerzo_a630", "kg", v_muro * kg_ac,
-                  "Acero refuerzo A630-42H", nombre,
-                  f"{kg_ac} kg/m³ muro")
-            _acum(acc, "moldaje_muro", "m2", area * 2,
-                  "Moldaje muro", nombre, "area × 2 caras")
-            if zap_factor > 0:
-                v_zap = v_muro * zap_factor
-                _acum(acc, "hormigon_armado_H30", "m3", v_zap,
-                      "Hormigon armado H30 zapata muro", nombre,
-                      f"vol_muro × {zap_factor:.2f} zapata_factor — ajustar en secciones_civiles.yaml")
-                _acum(acc, "acero_refuerzo_a630", "kg", v_zap * kg_ac,
-                      "Acero refuerzo A630-42H zapata", nombre,
-                      f"{kg_ac} kg/m³ zapata")
+                  "Muro de contencion hormigon (all-inclusive)", nombre,
+                  "precio ONDAC $95.000/m2 incluye hormigon + acero + moldaje")
             geo_factor = s.get("geotextil_factor", 0.0)
             if geo_factor > 0:
                 _acum(acc, "geotextil_drenaje", "m2", area * geo_factor,

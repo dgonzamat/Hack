@@ -10,4 +10,5 @@ pymupdf>=1.24
 pillow>=10
 openpyxl>=3.1
 scikit-learn>=1.4
+pyyaml>=6.0
 pytest>=8.0

@@ -1,0 +1,59 @@
+# Secciones transversales del proyecto — COMPLETAR CON DATOS DE SUS PLANOS
+# Fuente: planos de detalle, sección tipo y memoria de cálculo del proyecto
+#
+# Uso:
+#   python poc_cubicacion.py plano.pdf --secciones secciones_civiles.yaml --excel out.xlsx
+#
+# IMPORTANTE: Los valores por defecto son típicos para obras MOP/Metro Santiago.
+# Reemplazarlos con las dimensiones reales del proyecto antes de usar.
+
+# ── TUNELES ────────────────────────────────────────────────────────────────────
+tunel:
+  # Túnel carretero con sección de herradura o rectangular (MOP)
+  ancho_excav_m: 8.50          # ancho libre de excavación
+  alto_excav_m: 7.50           # altura libre de excavación
+  tipo_suelo: roca             # roca | mixto | suelo_blando
+  espesor_revestimiento_m: 0.40
+  kg_acero_por_m3_revest: 80   # cuantía acero revestimiento
+
+tunel_metro:
+  # Túnel metro con sección circular (tuneladora TBM)
+  diametro_excav_m: 6.00
+  espesor_dovelas_m: 0.30
+  kg_acero_por_m3_dovela: 100
+
+galeria:
+  # Galerías de servicio / emergencia
+  ancho_excav_m: 3.50
+  alto_excav_m: 3.50
+  espesor_revestimiento_m: 0.30
+  kg_acero_por_m3_revest: 70
+
+# ── PUENTES ────────────────────────────────────────────────────────────────────
+puente:
+  ancho_tablero_m: 10.00       # ancho total del tablero
+  espesor_tablero_m: 0.55      # espesor promedio (vigas T pretensadas + losa)
+  kg_acero_por_m3_tablero: 120 # cuantía acero tablero
+
+# ── MUROS DE CONTENCION ────────────────────────────────────────────────────────
+muro_contencion:
+  espesor_m: 0.40              # espesor muro en voladizo
+  kg_acero_por_m3: 80
+
+# ── PAVIMENTO FLEXIBLE (asfalto) ───────────────────────────────────────────────
+pavimento_flexible:
+  carpeta_asfaltica_m: 0.06    # e=60mm carpeta en caliente
+  base_granular_m: 0.20        # e=200mm base granular compactada
+  sub_base_granular_m: 0.20    # e=200mm sub-base granular
+
+# ── PAVIMENTO RIGIDO (hormigon) ────────────────────────────────────────────────
+pavimento_rigido:
+  losa_hormigon_m: 0.22        # e=220mm losa H-30
+  sub_base_m: 0.15             # e=150mm sub-base estabilizada
+
+# ── DRENAJE ────────────────────────────────────────────────────────────────────
+cuneta:
+  ancho_m: 0.40                # ancho cuneta triangular/trapezoidal
+
+vereda:
+  espesor_hormigon_m: 0.10     # e=100mm hormigón de vereda

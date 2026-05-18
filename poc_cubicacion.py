@@ -735,6 +735,8 @@ def main() -> None:
                         help="Fracción IVA (default 0.19 Chile)")
     parser.add_argument("--incluir-comunes", action="store_true",
                         help="Incluye áreas comunes en cubicación (default false)")
+    parser.add_argument("--secciones", default=None,
+                        help="YAML con secciones transversales del proyecto (ej: secciones_civiles.yaml)")
     parser.add_argument("--reattribute", action="store_true",
                         help="Aplicar reattribution post-hoc usando schedule")
     args = parser.parse_args()
@@ -829,11 +831,18 @@ def main() -> None:
         pag = primera.get("_pagina")
         sched = schedules.get(pag)
 
+        secciones = None
+        if args.secciones:
+            import yaml
+            with open(args.secciones, encoding="utf-8") as _f:
+                secciones = yaml.safe_load(_f)
+
         cubicacion = cubicar(
             primera,
             altura_global=args.altura,
             alturas_override=alturas_override,
             incluir_comunes=args.incluir_comunes,
+            secciones=secciones,
         )
         pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
         imprimir_presupuesto(pres)

@@ -152,7 +152,18 @@ def _hoja_cubicacion(wb: Workbook, cubicacion: dict, presupuesto: dict) -> None:
 
     row = 2
     primera_fila = row
+    tipo_actual = None
     for l in presupuesto["lineas"]:
+        tipo = l.get("tipo", "residencial")
+        if tipo != tipo_actual:
+            if tipo == "vial":
+                row += 1
+                hdr = ws.cell(row=row, column=1, value="INFRAESTRUCTURA VIAL")
+                hdr.font = Font(bold=True)
+                hdr.fill = PatternFill("solid", fgColor="C6EFCE")
+                ws.cell(row=row, column=2, value="Cantidades estimadas — verificar con planos de seccion").font = Font(italic=True)
+                row += 1
+            tipo_actual = tipo
         ws.cell(row=row, column=1, value=l["partida"])
         ws.cell(row=row, column=2, value=l["descripcion"])
         ws.cell(row=row, column=3, value=l["unidad"])

@@ -5,6 +5,7 @@ Entrada: el dict del JSON producido por poc_cubicacion.py (v4 o v5)
 Salida: lista de partidas con cantidad, unidad y desglose por recinto.
 """
 
+import copy
 import math
 import pickle
 import re
@@ -143,6 +144,270 @@ def dim_vano(tipo: str) -> tuple[float, float, bool]:
     return VANO_DEFAULT[0], VANO_DEFAULT[1], True
 
 
+# ─── Secciones transversales civiles ──────────────────────────────────────────
+
+_DEFAULT_SECCIONES: dict = {
+    "tunel": {
+        "ancho_excav_m": 8.5,
+        "alto_excav_m": 7.5,
+        "espesor_revestimiento_m": 0.40,
+        "kg_acero_por_m3_revest": 80,
+    },
+    "galeria": {
+        "ancho_excav_m": 3.5,
+        "alto_excav_m": 3.5,
+        "espesor_revestimiento_m": 0.30,
+        "kg_acero_por_m3_revest": 70,
+    },
+    "tunel_metro": {
+        "diametro_excav_m": 6.0,
+        "espesor_dovelas_m": 0.30,
+        "kg_acero_por_m3_dovela": 100,
+    },
+    "puente": {
+        "ancho_tablero_m": 10.0,
+        "espesor_tablero_m": 0.55,
+        "kg_acero_por_m3_tablero": 120,
+    },
+    "muro_contencion": {
+        "espesor_m": 0.40,
+        "kg_acero_por_m3": 80,
+    },
+    "pavimento_flexible": {
+        "carpeta_asfaltica_m": 0.06,
+        "base_granular_m": 0.20,
+        "sub_base_granular_m": 0.20,
+    },
+    "pavimento_rigido": {
+        "losa_hormigon_m": 0.22,
+        "sub_base_m": 0.15,
+    },
+    "cuneta": {"ancho_m": 0.40},
+    "vereda": {"espesor_hormigon_m": 0.10},
+}
+
+# Categoría simple de elemento vial → lógica de cubicación
+_VIAL_CATS = [
+    (re.compile(r"\b(CALZADA|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA)\b"), "calzada"),
+    (re.compile(r"\bPISTA\b"), "calzada"),
+    (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
+    (re.compile(r"\b(VEREDA|ACERA|BANQUETA)\b"), "vereda"),
+    (re.compile(r"\b(CICLOVIA|CICLOVÍA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
+    (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA)\b"), "cuneta"),
+    (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD|ESCOLLERA)\b"), "muro"),
+    # Orden importa: tunel_metro y galeria antes de tunel (mas especificos)
+    (re.compile(r"\b(TUNEL METRO|TUBO METRO|TUNEL TBM|TUNEL FERROVIARIO|TUNEL CIRCULAR)\b"), "tunel_metro"),
+    (re.compile(r"\b(GALERIA|BOVEDA|HASTIAL)\b"), "galeria"),
+    (re.compile(r"\b(TUNEL|PORTAL)\b"), "tunel"),
+    (re.compile(r"\b(REVESTIMIENTO TUNEL|SHOTCRETE|HORMIGON PROYECTADO|CONTRABOVEDA)\b"), "revestimiento_tunel"),
+    (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE)\b"), "puente"),
+]
+
+
+def _cat_vial(n_norm: str) -> Optional[str]:
+    for regex, cat in _VIAL_CATS:
+        if regex.search(n_norm):
+            return cat
+    return None
+
+
+def _merge_sec(secciones: Optional[dict]) -> dict:
+    """Combina secciones del usuario con defaults (deep merge por clave raiz)."""
+    result = copy.deepcopy(_DEFAULT_SECCIONES)
+    if secciones:
+        for k, v in secciones.items():
+            if k in result and isinstance(v, dict):
+                result[k].update(v)
+            else:
+                result[k] = v
+    return result
+
+
+def _acum(
+    acc: dict, partida: str, unidad: str, cantidad: float,
+    descripcion: str, nombre: str, supuesto: str = "",
+) -> None:
+    """Acumula cantidad en la partida dada, creando la entrada si no existe."""
+    if partida not in acc:
+        acc[partida] = {
+            "partida": partida,
+            "descripcion": descripcion,
+            "unidad": unidad,
+            "cantidad": 0.0,
+            "tipo": "vial",
+            "supuesto": supuesto,
+            "elementos": [],
+        }
+    acc[partida]["cantidad"] += cantidad
+    acc[partida]["elementos"].append({"nombre": nombre})
+
+
+def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None) -> list[dict]:
+    """
+    Genera partidas civiles desde elementos viales detectados.
+
+    secciones: dict cargado desde secciones_civiles.yaml (opcional).
+    Si no se provee, usa dimensiones tipicas MOP/Metro (ver _DEFAULT_SECCIONES).
+
+    Formulas aplicadas (todas documentadas en campo 'supuesto'):
+    - Calzada flexible  → carpeta + base + sub-base (m²) + excavacion (m³)
+    - Calzada rigida    → pavimento hormigon + sub-base (m²)
+    - Vereda            → acera hormigon + base (m²)
+    - Cuneta            → ml = area / ancho_cuneta
+    - Tunel (rect.)     → excavacion m³ = area × alto; revestimiento m²; acero kg
+    - Galeria (rect.)   → igual que tunel con seccion de galeria
+    - Tunel metro (TBM) → seccion circular: V = area_planta × area_sec / ancho_planta
+    - Puente            → hormigon m³ = area × espesor; acero kg; moldaje m²
+    - Muro              → hormigon m³; acero kg; moldaje m²
+    """
+    sec = _merge_sec(secciones)
+    acc: dict[str, dict] = {}
+
+    for elem in viales_detectados:
+        nombre = elem.get("nombre", "?")
+        area = elem.get("area_m2") or 0.0
+        if area <= 0:
+            continue
+
+        cat = _cat_vial(_norm(nombre))
+        if cat is None:
+            continue
+
+        if cat == "calzada":
+            pav = sec["pavimento_flexible"]
+            cap = pav["carpeta_asfaltica_m"]
+            base = pav["base_granular_m"]
+            sub = pav["sub_base_granular_m"]
+            _acum(acc, "carpeta_asfaltica_e60mm", "m2", area,
+                  f"Carpeta asfaltica e={int(cap*1000)}mm", nombre,
+                  f"area directa; e={cap*1000:.0f} mm")
+            _acum(acc, "base_granular_e200mm", "m2", area,
+                  f"Base granular e={int(base*1000)}mm", nombre,
+                  f"area directa; e={base*1000:.0f} mm")
+            _acum(acc, "sub_base_granular_e200mm", "m2", area,
+                  f"Sub-base granular e={int(sub*1000)}mm", nombre,
+                  f"area directa; e={sub*1000:.0f} mm")
+            _acum(acc, "excavacion_tierra_comun", "m3", area * (cap + base + sub),
+                  "Excavacion tierra comun", nombre,
+                  f"area × {cap+base+sub:.2f} m (suma capas)")
+
+        elif cat == "calzada_rigida":
+            pr = sec["pavimento_rigido"]
+            losa_m = pr["losa_hormigon_m"]
+            sub_m = pr["sub_base_m"]
+            _acum(acc, "pavimento_hormigon_rigido", "m2", area,
+                  f"Pavimento hormigon rigido e={int(losa_m*100)}cm", nombre,
+                  f"area directa; e={losa_m*1000:.0f} mm")
+            _acum(acc, "sub_base_granular_e200mm", "m2", area,
+                  f"Sub-base granular e={int(sub_m*1000)}mm", nombre,
+                  f"area directa; e={sub_m*1000:.0f} mm")
+
+        elif cat == "vereda":
+            esp_v = sec["vereda"]["espesor_hormigon_m"]
+            _acum(acc, "acera_hormigon_e10cm", "m2", area,
+                  f"Acera hormigon e={int(esp_v*100)}cm", nombre,
+                  f"area directa; e={esp_v*100:.0f} cm")
+            _acum(acc, "base_granular_e200mm", "m2", area,
+                  "Base granular vereda", nombre, "area directa")
+
+        elif cat == "ciclovia":
+            _acum(acc, "ciclovia_pavimento", "m2", area,
+                  "Ciclovia pavimento", nombre, "area directa")
+
+        elif cat == "cuneta":
+            ancho = sec["cuneta"]["ancho_m"]
+            _acum(acc, "cuneta_hormigon_revestida", "ml", area / ancho,
+                  f"Cuneta hormigon revestida a={ancho:.2f}m", nombre,
+                  f"area / {ancho:.2f} m ancho cuneta")
+
+        elif cat in ("tunel", "galeria"):
+            # Galeria usa su propia seccion si existe; fallback a tunel
+            s = sec["galeria"] if cat == "galeria" else sec["tunel"]
+            ancho = s["ancho_excav_m"]
+            alto = s["alto_excav_m"]
+            esp_rev = s["espesor_revestimiento_m"]
+            kg_ac = s["kg_acero_por_m3_revest"]
+            longitud = area / ancho
+            v_excav = longitud * ancho * alto    # = area_planta × alto
+            perim_sec = 2 * (ancho + alto)
+            area_rev = longitud * perim_sec
+            v_rev = area_rev * esp_rev
+            tipo_label = "galeria" if cat == "galeria" else "tunel"
+            _acum(acc, "excavacion_tunel_roca", "m3", v_excav,
+                  f"Excavacion {tipo_label} {ancho:.1f}×{alto:.1f} m", nombre,
+                  f"seccion {ancho:.1f}×{alto:.1f} m — ajustar en secciones_civiles.yaml")
+            _acum(acc, "revestimiento_tunel_hormigon", "m2", area_rev,
+                  f"Revestimiento {tipo_label} hormigon e={int(esp_rev*100)}cm", nombre,
+                  f"perim sec {perim_sec:.1f} m × longitud {longitud:.0f} m")
+            _acum(acc, "acero_refuerzo_a630", "kg", v_rev * kg_ac,
+                  "Acero refuerzo A630-42H", nombre,
+                  f"{kg_ac} kg/m³ revestimiento {tipo_label}")
+
+        elif cat == "tunel_metro":
+            s = sec["tunel_metro"]
+            diam = s["diametro_excav_m"]
+            esp_dov = s["espesor_dovelas_m"]
+            kg_ac = s["kg_acero_por_m3_dovela"]
+            # Seccion circular TBM: area_sec = π×(d/2)²; longitud = area_planta / d
+            area_sec = math.pi * (diam / 2) ** 2
+            longitud = area / diam
+            v_excav = longitud * area_sec
+            perim_sec = math.pi * diam
+            area_rev = longitud * perim_sec
+            v_dov = area_rev * esp_dov
+            _acum(acc, "excavacion_tunel_roca", "m3", v_excav,
+                  f"Excavacion tunel metro D={diam:.1f} m", nombre,
+                  f"seccion circular D={diam:.1f} m — ajustar en secciones_civiles.yaml")
+            _acum(acc, "revestimiento_tunel_hormigon", "m2", area_rev,
+                  f"Dovelas hormigon e={int(esp_dov*100)}cm", nombre,
+                  f"perim sec {perim_sec:.2f} m × longitud {longitud:.0f} m")
+            _acum(acc, "acero_refuerzo_a630", "kg", v_dov * kg_ac,
+                  "Acero refuerzo A630-42H dovelas", nombre,
+                  f"{kg_ac} kg/m³ dovelas")
+
+        elif cat == "revestimiento_tunel":
+            _acum(acc, "revestimiento_tunel_hormigon", "m2", area,
+                  "Revestimiento tunel hormigon", nombre, "area directa")
+
+        elif cat == "puente":
+            s = sec["puente"]
+            esp = s["espesor_tablero_m"]
+            kg_ac = s["kg_acero_por_m3_tablero"]
+            v_tab = area * esp
+            _acum(acc, "hormigon_armado_H30", "m3", v_tab,
+                  f"Hormigon armado H30 tablero e={int(esp*100)}cm", nombre,
+                  f"area × {esp:.2f} m espesor tablero — ajustar en secciones_civiles.yaml")
+            _acum(acc, "acero_refuerzo_a630", "kg", v_tab * kg_ac,
+                  "Acero refuerzo A630-42H", nombre,
+                  f"{kg_ac} kg/m³ tablero")
+            _acum(acc, "moldaje_tablero", "m2", area * 2,
+                  "Moldaje tablero puente", nombre,
+                  "area × 2 caras (intrados + prelosa)")
+
+        elif cat == "muro":
+            s = sec["muro_contencion"]
+            esp = s["espesor_m"]
+            kg_ac = s["kg_acero_por_m3"]
+            v_muro = area * esp
+            _acum(acc, "muro_contencion_hormigon", "m2", area,
+                  f"Muro de contencion hormigon e={int(esp*100)}cm", nombre,
+                  f"area cara del muro; e={esp:.2f} m")
+            _acum(acc, "hormigon_armado_H30", "m3", v_muro,
+                  f"Hormigon armado H30 muro e={int(esp*100)}cm", nombre,
+                  f"area × {esp:.2f} m espesor — ajustar en secciones_civiles.yaml")
+            _acum(acc, "acero_refuerzo_a630", "kg", v_muro * kg_ac,
+                  "Acero refuerzo A630-42H", nombre,
+                  f"{kg_ac} kg/m³ muro")
+            _acum(acc, "moldaje_muro", "m2", area * 2,
+                  "Moldaje muro", nombre, "area × 2 caras")
+
+    result = []
+    for p in acc.values():
+        p["cantidad"] = round(p["cantidad"], 1)
+        result.append(p)
+    return result
+
+
 def area_vanos_total(vanos: dict) -> tuple[float, list[dict]]:
     """
     Suma el area total de puertas + ventanas y devuelve detalle de cada tipo.
@@ -188,6 +453,7 @@ def cubicar(
     altura_global: float = 2.4,
     alturas_override: Optional[dict[str, float]] = None,
     incluir_comunes: bool = False,
+    secciones: Optional[dict] = None,
 ) -> dict:
     """
     Convierte un resultado del PoC (un elemento de 'resultados[]') en cantidades por partida.
@@ -369,6 +635,10 @@ def cubicar(
             "cantidad": round(ventanas_area, 1),
             "nota": "area unitaria × cantidad por tipo",
         })
+
+    # Partidas civiles desde elementos viales detectados
+    partidas_vial = cubicar_vial(viales_detectados, secciones=secciones)
+    partidas.extend(partidas_vial)
 
     return {
         "partidas": partidas,

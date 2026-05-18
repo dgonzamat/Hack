@@ -437,6 +437,60 @@ class TestCubicarVial:
         assert "moldaje_muro" in partidas
         assert partidas["muro_contencion_hormigon"]["cantidad"] == pytest.approx(45.0, abs=0.1)
 
+    def test_galeria_usa_seccion_propia(self):
+        """GALERIA usa sec['galeria'] (3.5×3.5) independiente de sec['tunel']."""
+        res = cubicar_vial(self._vial("GALERIA SERVICIO", 49.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_tunel_roca" in partidas
+        assert "revestimiento_tunel_hormigon" in partidas
+        assert "acero_refuerzo_a630" in partidas
+        # ancho default galeria=3.5 → longitud=49/3.5=14; V=14×3.5×3.5=171.5 m³
+        assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(171.5, abs=1.0)
+
+    def test_galeria_custom_no_contamina_tunel(self):
+        """Secciones custom de galeria no afectan la seccion de tunel."""
+        sec = {"galeria": {"ancho_excav_m": 4.0, "alto_excav_m": 4.0,
+                           "espesor_revestimiento_m": 0.30, "kg_acero_por_m3_revest": 70}}
+        res_gal = cubicar_vial(self._vial("GALERIA BYPASS", 40.0), secciones=sec)
+        res_tun = cubicar_vial(self._vial("TUNEL", 40.0), secciones=sec)
+        pg = {p["partida"]: p for p in res_gal}
+        pt = {p["partida"]: p for p in res_tun}
+        # galeria V = (40/4)×4×4 = 160; tunel V = (40/8.5)×8.5×7.5 = 300
+        assert pg["excavacion_tunel_roca"]["cantidad"] == pytest.approx(160.0, abs=1.0)
+        assert pt["excavacion_tunel_roca"]["cantidad"] == pytest.approx(300.0, abs=1.0)
+
+    def test_tunel_metro_seccion_circular(self):
+        """TUNEL METRO usa seccion circular TBM (D=6.0m por default)."""
+        res = cubicar_vial(self._vial("TUNEL METRO LINEA 3", 120.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_tunel_roca" in partidas
+        assert "revestimiento_tunel_hormigon" in partidas
+        assert "acero_refuerzo_a630" in partidas
+        # D=6.0 → area_sec=π×3²=28.27 m²; longitud=120/6=20 m
+        # V_excav = 20 × 28.27 ≈ 565.5 m³
+        assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(565.5, abs=2.0)
+
+    def test_tunel_metro_custom_diametro(self):
+        """Diametro configurable en secciones_civiles.yaml."""
+        sec = {"tunel_metro": {"diametro_excav_m": 9.0, "espesor_dovelas_m": 0.35,
+                               "kg_acero_por_m3_dovela": 110}}
+        res = cubicar_vial(self._vial("TUNEL TBM PONIENTE", 180.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        # D=9.0 → area_sec=π×4.5²=63.62 m²; longitud=180/9=20 m
+        # V_excav = 20 × 63.62 ≈ 1272.3 m³
+        assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(1272.3, abs=3.0)
+
+    def test_descripciones_dinamicas_calzada(self):
+        """Descripciones reflejan el espesor configurado, no un valor hardcodeado."""
+        sec = {"pavimento_flexible": {"carpeta_asfaltica_m": 0.08,
+                                       "base_granular_m": 0.25,
+                                       "sub_base_granular_m": 0.25}}
+        res = cubicar_vial(self._vial("CALZADA", 500.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        assert "80mm" in partidas["carpeta_asfaltica_e60mm"]["descripcion"]
+        assert "250mm" in partidas["base_granular_e200mm"]["descripcion"]
+        assert "250mm" in partidas["sub_base_granular_e200mm"]["descripcion"]
+
     def test_elemento_sin_categoria_ignorado(self):
         # MEDIANA es vial pero sin cat mapeada → lista vacia
         res = cubicar_vial(self._vial("MEDIANA", 20.0))

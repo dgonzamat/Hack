@@ -830,15 +830,32 @@ def cubicar(
             "nota": "muros.interior_ml × altura",
         })
 
-    # Puertas: separar por tipo simple/doble si es identificable
-    if puertas_total > 0:
-        # Si todas son simples (default), una sola partida
+    # Puertas: separar por tipo simple/doble segun keyword en tipo
+    _RE_PUERTA_DOBLE = re.compile(r"\b(DOBLE|150|D150|D-150|PPAL|PRINCIPAL 150)\b")
+    puertas_simples = 0
+    puertas_dobles = 0
+    for v in vanos.get("puertas", []):
+        cant = v.get("cantidad", 1) or 1
+        tipo_p = _norm(v.get("tipo", ""))
+        if _RE_PUERTA_DOBLE.search(tipo_p):
+            puertas_dobles += cant
+        else:
+            puertas_simples += cant
+    if puertas_simples > 0:
         partidas.append({
             "partida": "puerta_simple_90cm_instalada",
             "descripcion": "Puerta simple 90cm instalada",
             "unidad": "un",
-            "cantidad": puertas_total,
-            "nota": "conteo total de puertas detectadas",
+            "cantidad": puertas_simples,
+            "nota": "conteo puertas tipo simple",
+        })
+    if puertas_dobles > 0:
+        partidas.append({
+            "partida": "puerta_doble_150cm_instalada",
+            "descripcion": "Puerta doble 150cm instalada",
+            "unidad": "un",
+            "cantidad": puertas_dobles,
+            "nota": "conteo puertas tipo doble/principal",
         })
 
     if ventanas_area > 0:

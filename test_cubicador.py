@@ -274,6 +274,20 @@ class TestCubicarB1:
         partidas = {p["partida"]: p["cantidad"] for p in cubicacion["partidas"]}
         assert partidas["puerta_simple_90cm_instalada"] == 5
 
+    def test_puerta_doble_separada(self):
+        res = dict(RESULTADO_B1)
+        res["vanos"] = {
+            "puertas": [
+                {"tipo": "puerta simple 90", "cantidad": 3},
+                {"tipo": "puerta doble 150", "cantidad": 2},
+            ],
+            "ventanas": [],
+        }
+        cub = cubicar(res, altura_global=2.4)
+        partidas = {p["partida"]: p["cantidad"] for p in cub["partidas"]}
+        assert partidas.get("puerta_simple_90cm_instalada") == 3
+        assert partidas.get("puerta_doble_150cm_instalada") == 2
+
     def test_ventanas_area(self, cubicacion):
         """2 ventanas corredera 120 → 2 × 1.20 × 1.00 = 2.4 m²"""
         partidas = {p["partida"]: p["cantidad"] for p in cubicacion["partidas"]}

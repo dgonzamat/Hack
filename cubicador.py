@@ -26,7 +26,8 @@ _VIALES = re.compile(
     r"\b(CALZADA|PISTA|VEREDA|TUNEL|PORTAL|CUNETA|PUENTE|ROTONDA|VIADUCTO|BERMA|CARRIL|"
     r"TERRAPLEN|CORTE|ESCARPE|DESMONTE|ALCANTARILLA|CANAL|ACEQUIA|DEMARCACION|"
     r"SENALETIVA|SENALIZACION|ILUMINACION|LUMINARIA|GUARDAVIA|DEFENSA CAMINERA|"
-    r"REVEGETACION|PASARELA|ADOQUIN|EMPEDRADO|BARRERA|POZO|MEJORAMIENTO|SUBRASANTE)\b"
+    r"REVEGETACION|PASARELA|ADOQUIN|EMPEDRADO|BARRERA|POZO|MEJORAMIENTO|SUBRASANTE|"
+    r"COLECTOR|TUBERIA|ALCANTARILLADO|DREN|PASO SUPERIOR|PASO BAJO NIVEL)\b"
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
@@ -223,6 +224,9 @@ _DEFAULT_SECCIONES: dict = {
         "m2_por_pozo": 4.00,      # huella en planta por pozo (2m × 2m tipico)
     },
     "mejoramiento_suelo": {},     # sin parametros: m² directa
+    "colector": {
+        "ancho_zanja_m": 0.80,    # ancho zanja excavacion (ml = area / ancho_zanja)
+    },
 }
 
 # Elementos que contienen palabras de categorías viales pero NO son obras de infraestructura
@@ -245,8 +249,9 @@ _VIAL_CATS = [
     (re.compile(r"\b(ESCARPE|LIMPIEZA DE TERRENO|ROCE LIMPIEZA|DESCAPOTE|DESBOSQUE)\b"), "escarpe"),
     (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
     (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA)\b"), "canal"),
+    (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|DREN FRANCES|DREN LONGITUDINAL|RED DRENAJE|ALCANTARILLADO)\b"), "colector"),
     # ── Estructuras de pavimento
-    (re.compile(r"\b(CALZADA|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA)\b"), "calzada"),
+    (re.compile(r"\b(CALZADA|BERMA|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA)\b"), "calzada"),
     (re.compile(r"\bPISTA\b"), "calzada"),
     (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
     (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO)\b"), "adoquin"),
@@ -261,7 +266,7 @@ _VIAL_CATS = [
     (re.compile(r"\b(REVESTIMIENTO TUNEL|SHOTCRETE|HORMIGON PROYECTADO|CONTRABOVEDA)\b"), "revestimiento_tunel"),
     # ── Estructuras tipo puente
     (re.compile(r"\b(PASARELA|PASO SUPERIOR PEATONAL|PASO A DESNIVEL PEAT)\b"), "pasarela"),
-    (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE)\b"), "puente"),
+    (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE|PASO SUPERIOR VEHICULAR|PASO BAJO NIVEL|PASO DESNIVEL VIAL)\b"), "puente"),
 ]
 
 
@@ -336,6 +341,7 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
     - Iluminacion       → un = area / m2_por_poste
     - Defensa vial      → ml = area / ancho_guardavia
     - Revegetacion      → m² directa (hidrosiembra)
+    - Colector          → ml = area / ancho_zanja; PVC o hormigon por keyword
     """
     sec = _merge_sec(secciones)
     acc: dict[str, dict] = {}
@@ -522,6 +528,15 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "canal_hormigon_revestido", "ml", area / ancho,
                   f"Canal hormigon revestido a={ancho:.1f}m", nombre,
                   f"area / {ancho:.2f} m ancho canal")
+
+        elif cat == "colector":
+            ancho_z = sec["colector"]["ancho_zanja_m"]
+            n_norm = _norm(nombre)
+            es_hormigon = bool(re.search(r"\b(HORMIGON|HA\b|CONCRETO|CAC|CAÑO)\b", n_norm))
+            partida_col = "colector_hormigon_600mm" if es_hormigon else "colector_pvc_300mm"
+            _acum(acc, partida_col, "ml", area / ancho_z,
+                  f"{'Colector hormigon 600mm' if es_hormigon else 'Colector PVC 300mm'} ({ancho_z:.2f}m zanja)",
+                  nombre, f"area / {ancho_z:.2f} m ancho zanja — ajustar en secciones_civiles.yaml")
 
         elif cat == "pasarela":
             s = sec["pasarela"]

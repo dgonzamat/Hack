@@ -103,3 +103,7 @@ barrera_nj:
 # ── POZOS DE INSPECCIÓN ───────────────────────────────────────────────────────
 pozo_inspeccion:
   m2_por_pozo: 4.00            # huella en planta por pozo (2×2m tipico)
+
+# ── COLECTORES Y DRENES LONGITUDINALES ────────────────────────────────────────
+colector:
+  ancho_zanja_m: 0.80          # ancho zanja excavacion (ml = area_planta / ancho_zanja)

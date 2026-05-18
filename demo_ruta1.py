@@ -67,6 +67,9 @@ AREA_GUARDAVIA   = round(LONGITUD_M * 0.20 * 2 * 0.5)   # 4,200 m²
 # Revegetacion taludes: 30% de la ruta, talud 6m ancho c/lado
 AREA_REVEGETACION = round(LONGITUD_M * 0.30 * 6)         # 37,800 m²
 
+# Colector longitudinal PVC: 40% de la ruta, zanja 0.8m ancho
+AREA_COLECTOR    = round(LONGITUD_M * 0.40 * 0.8)        # 6,720 m² → 8,400 ml
+
 
 def construir_resultado() -> dict:
     """
@@ -169,6 +172,13 @@ def construir_resultado() -> dict:
             "nombre": "REVEGETACION TALUDES",
             "area_m2": float(AREA_REVEGETACION),
             "confianza": 0.78,
+            "departamento": "Ruta 1",
+        },
+        # Drenaje longitudinal
+        {
+            "nombre": "COLECTOR PVC DRENAJE LONGITUDINAL",
+            "area_m2": float(AREA_COLECTOR),
+            "confianza": 0.80,
             "departamento": "Ruta 1",
         },
     ]

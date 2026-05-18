@@ -767,6 +767,39 @@ class TestCubicarVial:
         assert partidas["mejoramiento_suelo_cal"]["unidad"] == "m2"
         assert partidas["mejoramiento_suelo_cal"]["cantidad"] == pytest.approx(1200.0)
 
+    def test_colector_pvc_genera_ml(self):
+        # 160 m² area planta, zanja 0.8m → 200 ml
+        res = cubicar_vial(self._vial("COLECTOR PVC KM5", 160.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+        assert partidas["colector_pvc_300mm"]["unidad"] == "ml"
+        assert partidas["colector_pvc_300mm"]["cantidad"] == pytest.approx(200.0)
+
+    def test_colector_hormigon_genera_ml(self):
+        # keyword HORMIGON → colector_hormigon_600mm
+        res = cubicar_vial(self._vial("COLECTOR HORMIGON KM8", 240.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_hormigon_600mm" in partidas
+        assert "colector_pvc_300mm" not in partidas
+
+    def test_berma_genera_capas_pavimento(self):
+        # BERMA should be treated as calzada (flexible pavement)
+        res = cubicar_vial(self._vial("BERMA PAVIMENTADA LATERAL", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" in partidas
+
+    def test_paso_superior_vehicular_genera_puente(self):
+        res = cubicar_vial(self._vial("PASO SUPERIOR VEHICULAR KM14", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+        assert "moldaje_tablero" in partidas
+
+    def test_paso_bajo_nivel_genera_puente(self):
+        res = cubicar_vial(self._vial("PASO BAJO NIVEL ACCESO", 300.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

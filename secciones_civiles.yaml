@@ -34,17 +34,30 @@ puente:
   ancho_tablero_m: 10.00       # ancho total del tablero
   espesor_tablero_m: 0.55      # espesor promedio (vigas T pretensadas + losa)
   kg_acero_por_m3_tablero: 120 # cuantía acero tablero
+  estribo_factor: 0.0          # vol_estribo = vol_tablero × factor (0.35 tipico MOP)
 
 # ── MUROS DE CONTENCION ────────────────────────────────────────────────────────
 muro_contencion:
   espesor_m: 0.40              # espesor muro en voladizo
   kg_acero_por_m3: 80
+  zapata_factor: 0.0           # vol_zapata = vol_muro × factor (0.30 para voladizo tipico)
+  geotextil_factor: 0.0        # area_geotextil = area × factor (1.1 con drenaje trasdos)
 
 # ── PAVIMENTO FLEXIBLE (asfalto) ───────────────────────────────────────────────
 pavimento_flexible:
   carpeta_asfaltica_m: 0.06    # e=60mm carpeta en caliente
   base_granular_m: 0.20        # e=200mm base granular compactada
   sub_base_granular_m: 0.20    # e=200mm sub-base granular
+  subrasante_m: 0.15           # e=150mm subrasante compactada/estabilizada (MOP estandar)
+
+# ── PAVIMENTO GRANULAR (camino ripio/afirmado) ────────────────────────────────
+calzada_granular:
+  base_granular_m: 0.20          # e=200mm base granular compactada
+  sub_base_granular_m: 0.20      # e=200mm sub-base granular
+
+# ── CICLOVIA ──────────────────────────────────────────────────────────────────
+ciclovia:
+  base_granular_m: 0.15          # e=150mm base granular bajo ciclovia (menor que calzada)
 
 # ── PAVIMENTO RIGIDO (hormigon) ────────────────────────────────────────────────
 pavimento_rigido:
@@ -57,3 +70,49 @@ cuneta:
 
 vereda:
   espesor_hormigon_m: 0.10     # e=100mm hormigón de vereda
+
+# ── MOVIMIENTO DE TIERRAS ──────────────────────────────────────────────────────
+terraplen:
+  altura_media_m: 2.00         # altura media de relleno compactado (MOP típico)
+
+# ── DRENAJE TRANSVERSAL ───────────────────────────────────────────────────────
+alcantarilla:
+  ancho_interno_m: 1.50        # ancho interno alcantarilla/cajón hormigón (m)
+
+
+# ── CORTE Y DESMONTE ──────────────────────────────────────────────────────────
+corte:
+  profundidad_media_m: 3.00    # profundidad media de corte en banco/desmonte
+
+# ── CANAL REVESTIDO ───────────────────────────────────────────────────────────
+canal:
+  ancho_m: 2.00                # ancho interno canal hormigon revestido (m)
+
+# ── PASARELA PEATONAL ─────────────────────────────────────────────────────────
+pasarela:
+  espesor_tablero_m: 0.25      # tablero liviano pasarela peatonal
+  kg_acero_por_m3_tablero: 80
+
+# ── SEÑALÉTICA VERTICAL ───────────────────────────────────────────────────────
+senaletiva:
+  area_m2_por_senal: 1.50      # área panel señal retroreflectante tipo A1 (m²)
+
+# ── ILUMINACIÓN VIAL ──────────────────────────────────────────────────────────
+iluminacion:
+  m2_por_poste: 4.00           # huella en planta por poste (base + cimentación)
+
+# ── DEFENSAS VIALES ───────────────────────────────────────────────────────────
+defensa_vial:
+  ancho_m: 0.50                # ancho ocupación en planta guardavía W-beam (m)
+
+# ── BARRERA HORMIGÓN TIPO NEW JERSEY ─────────────────────────────────────────
+barrera_nj:
+  ancho_m: 0.60                # ancho base barrera NJ estándar (m)
+
+# ── POZOS DE INSPECCIÓN ───────────────────────────────────────────────────────
+pozo_inspeccion:
+  m2_por_pozo: 4.00            # huella en planta por pozo (2×2m tipico)
+
+# ── COLECTORES Y DRENES LONGITUDINALES ────────────────────────────────────────
+colector:
+  ancho_zanja_m: 0.80          # ancho zanja excavacion (ml = area_planta / ancho_zanja)

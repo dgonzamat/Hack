@@ -9,6 +9,7 @@ import copy
 import math
 import pickle
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -23,7 +24,14 @@ _COMUNES = re.compile(
     r"\b(HALL|PASILLO|CORREDOR|ESCALERA|ASCENSOR|DUCTO|SHAFT|RECEP|CIRCULACION)\b"
 )
 _VIALES = re.compile(
-    r"\b(CALZADA|PISTA|VEREDA|TUNEL|TUNEL|PORTAL|CUNETA|PUENTE|ROTONDA|VIADUCTO|BERMA|CARRIL)\b"
+    r"\b(CALZADA|PISTA|VEREDA|TUNEL|PORTAL|CUNETA|PUENTE|ROTONDA|VIADUCTO|BERMA|CARRIL|"
+    r"TERRAPLEN|CORTE|ESCARPE|DESMONTE|ALCANTARILLA|CANAL|ACEQUIA|DEMARCACION|"
+    r"SENALETIVA|SENALIZACION|ILUMINACION|LUMINARIA|GUARDAVIA|DEFENSA CAMINERA|"
+    r"REVEGETACION|PASARELA|ADOQUIN|EMPEDRADO|BARRERA|POZO|MEJORAMIENTO|SUBRASANTE|"
+    r"COLECTOR|TUBERIA|CAÑERIA|ALCANTARILLADO|DREN|PASO SUPERIOR|PASO BAJO NIVEL|"
+    r"ENSANCHE|SOBREANCHO|RELLENO|EXCAVACION|MEDIANA|TROCHA|ASFALTADO|"
+    r"RAMPA|ANDEN|VADO|GEOTEXTIL|GEOMALLA|AFIRMADO|CICLOVIA|CICLOBANDA|"
+    r"ESPALDON|ENROCADO|ESCOLLERA|ESCARPE)\b"
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
@@ -49,8 +57,9 @@ def _cargar_modelo() -> object | None:
 
 
 def _norm(s: str) -> str:
-    """Normaliza nombre: mayusculas, sin guiones/barras, sin espacios extra. Mantiene puntos."""
-    return re.sub(r"\s+", " ", s.upper().replace("-", " ").replace("/", " ")).strip()
+    """Normaliza nombre: mayusculas, sin acentos, sin guiones/barras, sin espacios extra. Mantiene puntos."""
+    sin_acentos = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", " ", sin_acentos.upper().replace("-", " ").replace("/", " ")).strip()
 
 
 def clasificar_recinto(nombre: str) -> tuple[str, bool]:
@@ -168,15 +177,19 @@ _DEFAULT_SECCIONES: dict = {
         "ancho_tablero_m": 10.0,
         "espesor_tablero_m": 0.55,
         "kg_acero_por_m3_tablero": 120,
+        "estribo_factor": 0.0,      # vol_estribo = vol_tablero × factor (0.35 tipico MOP)
     },
     "muro_contencion": {
         "espesor_m": 0.40,
         "kg_acero_por_m3": 80,
+        "zapata_factor": 0.0,       # vol_zapata = vol_muro × factor (0.30 para voladizo tipico MOP)
+        "geotextil_factor": 0.0,    # area_geotextil = area × factor (1.1 para muro con drenaje)
     },
     "pavimento_flexible": {
         "carpeta_asfaltica_m": 0.06,
         "base_granular_m": 0.20,
         "sub_base_granular_m": 0.20,
+        "subrasante_m": 0.15,    # e=150mm subrasante compactada/estabilizada (MOP estandar)
     },
     "pavimento_rigido": {
         "losa_hormigon_m": 0.22,
@@ -184,27 +197,97 @@ _DEFAULT_SECCIONES: dict = {
     },
     "cuneta": {"ancho_m": 0.40},
     "vereda": {"espesor_hormigon_m": 0.10},
+    "corte": {
+        "profundidad_media_m": 3.00,  # profundidad media de corte en roca/tierra
+    },
+    "canal": {
+        "ancho_m": 2.00,              # ancho interno canal revestido
+    },
+    "pasarela": {
+        "espesor_tablero_m": 0.25,    # tablero liviano pasarela peatonal
+        "kg_acero_por_m3_tablero": 80,
+    },
+    "terraplen": {
+        "altura_media_m": 2.00,
+    },
+    "alcantarilla": {
+        "ancho_interno_m": 1.50,
+    },
+    "senaletiva": {
+        "area_m2_por_senal": 1.50,
+    },
+    "iluminacion": {
+        "m2_por_poste": 4.00,
+    },
+    "defensa_vial": {
+        "ancho_m": 0.50,
+    },
+    "barrera_nj": {
+        "ancho_m": 0.60,          # ancho base barrera New Jersey
+    },
+    "pozo_inspeccion": {
+        "m2_por_pozo": 4.00,      # huella en planta por pozo (2m × 2m tipico)
+    },
+    "mejoramiento_suelo": {},     # sin parametros: m² directa
+    "calzada_granular": {         # camino ripio/afirmado sin carpeta asfaltica
+        "base_granular_m": 0.20,
+        "sub_base_granular_m": 0.20,
+    },
+    "colector": {
+        "ancho_zanja_m": 0.80,    # ancho zanja excavacion (ml = area / ancho_zanja)
+    },
+    "ciclovia": {
+        "base_granular_m": 0.15,  # e=150mm base granular bajo ciclovia (menor que calzada)
+    },
 }
+
+# Elementos que contienen palabras de categorías viales pero NO son obras de infraestructura
+_VIAL_SKIP = re.compile(r"\b(MIRADOR|PARADERO|PLAZOLETA|BALCON)\b")
 
 # Categoría simple de elemento vial → lógica de cubicación
 _VIAL_CATS = [
-    (re.compile(r"\b(CALZADA|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA)\b"), "calzada"),
+    # ── Senaletiva y equipamiento vial (antes que CALZADA — pueden incluir la palabra como calificador)
+    (re.compile(r"\b(DEMARCACION|LINEAS DE TRAFICO|TACHAS|TACHONES)\b"), "demarcacion"),
+    (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL)\b"), "senaletiva"),
+    (re.compile(r"\b(ILUMINACION|LUMINARIA|ALUMBRADO VIAL|POSTE LUZ)\b"), "iluminacion"),
+    (re.compile(r"\b(BARRERA HORMIGON|NEW JERSEY|BARRERA NJ|BARRERA RIGIDA|MURO NEW JERSEY)\b"), "barrera_nj"),
+    (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
+    (re.compile(r"\b(POZO DE INSPECCION|CAMARA DE INSPECCION|POZO VISITA|SUMIDERO|POZO AGUAS)\b"), "pozo_inspeccion"),
+    (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO|SUBBASE TRATADA|SUBRASANTE TRATADA)\b"), "mejoramiento_suelo"),
+    (re.compile(r"\b(GEOTEXTIL|GEOMALLA|GEOCOMPUESTO|GEOCOMPOSITE|GEOSINTETICO)\b"), "geotextil"),
+    (re.compile(r"\b(REVEGETACION|HIDROSIEMBRA|COBERTURA VEGETAL|SIEMBRA TALUD|MEDIANA VERDE|MEDIANA CENTRAL|SEPARADOR VEGETAL|SEPARADOR CENTRAL)\b"), "revegetacion"),
+    # ── Movimiento de tierras y drenaje (antes que CALZADA)
+    (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|RELLENO ESTRUCTURAL|RELLENO ZANJA|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
+    (re.compile(r"\b(CORTE EN ROCA|CORTE EN TIERRA|EXCAVACION EN CORTE|EXCAVACION MASIVA|EXCAVACION GENERAL|DESMONTE|BANCO DE PRESTAMO|TRINCHERA)\b"), "corte"),
+    (re.compile(r"\b(ESCARPE|LIMPIEZA DE TERRENO|ROCE LIMPIEZA|DESCAPOTE|DESBOSQUE)\b"), "escarpe"),
+    (re.compile(r"\b(ENROCADO|ENROCAMIENTO|MURO GAVION|MURO DE PIEDRA|MURO TIERRA ARMADA|TALUD REVESTIDO|ESCOLLERA)\b"), "muro"),
+    (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
+    (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA)\b"), "canal"),
+    (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|TUBERIA HDPE|TUBERIA CORRUGADA|CAÑERIA DRENAJE|DREN FRANCES|DREN LONGITUDINAL|RED DRENAJE|ALCANTARILLADO|SUBCOLECTOR)\b"), "colector"),
+    # ── Estructuras de pavimento (específicas ANTES que la genérica calzada)
+    (re.compile(r"\b(AFIRMADO GRANULAR|PAVIMENTO GRANULAR|CAMINO RIPIO|RIPIO COMPACTADO|GRAVA COMPACTADA|CAMINO GRANULAR|CAMINO DE SERVICIO|CAMINO VECINAL|ESPALDON|BERMA GRANULAR|ZONA DE SEGURIDAD VIAL|CAMINO LATERAL|CAMINO INTERIOR)\b"), "calzada_granular"),
+    (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA|CALZADA HORMIGON|HORMIGON CALZADA)\b"), "calzada_rigida"),
+    (re.compile(r"\b(CALZADA|BERMA|ENSANCHE|SOBREANCHO|DESVIO PROVISIONAL|PLATAFORMA VIAL|CAMINO DE ACCESO|VIA DE SERVICIO|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA|ASFALTADO|TROCHA|PATIO DE MANIOBRAS|RAMPA VEHICULAR|RAMPA ACCESO|ACCESO VEHICULAR|PAVIMENTO ASFALTICO|PAVIMENTO BITUMINOSO|CONCRETO ASFALTICO|RECARPETEO|BACHEO|CARPETA ASFALTICA|MEZCLA ASFALTICA)\b"), "calzada"),
     (re.compile(r"\bPISTA\b"), "calzada"),
-    (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
-    (re.compile(r"\b(VEREDA|ACERA|BANQUETA)\b"), "vereda"),
-    (re.compile(r"\b(CICLOVIA|CICLOVÍA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
-    (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA)\b"), "cuneta"),
-    (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD|ESCOLLERA)\b"), "muro"),
-    # Orden importa: tunel_metro y galeria antes de tunel (mas especificos)
+    (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO|MEDIANA PAVIMENTADA|MEDIANA ADOQUIN)\b"), "adoquin"),
+    (re.compile(r"\b(VEREDA|ACERA|BANQUETA|ANDEN|PLATAFORMA PEATONAL|VADO PEATONAL)\b"), "vereda"),
+    (re.compile(r"\b(CICLOVIA|CICLOBANDA|CICLOACERA|CICLOPISTA|VIA CICLISTA|SENDA CICLISTA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
+    (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA|BADEN)\b"), "cuneta"),
+    (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD)\b"), "muro"),
+    # ── Túneles (orden importa: tunel_metro y galeria antes de tunel)
     (re.compile(r"\b(TUNEL METRO|TUBO METRO|TUNEL TBM|TUNEL FERROVIARIO|TUNEL CIRCULAR)\b"), "tunel_metro"),
     (re.compile(r"\b(GALERIA|BOVEDA|HASTIAL)\b"), "galeria"),
     (re.compile(r"\b(TUNEL|PORTAL)\b"), "tunel"),
     (re.compile(r"\b(REVESTIMIENTO TUNEL|SHOTCRETE|HORMIGON PROYECTADO|CONTRABOVEDA)\b"), "revestimiento_tunel"),
-    (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE)\b"), "puente"),
+    # ── Estructuras tipo puente
+    (re.compile(r"\b(PASARELA|PASO SUPERIOR PEATONAL|PASO A DESNIVEL PEAT)\b"), "pasarela"),
+    (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE|LOSA DE APROXIMACION|PASO SUPERIOR VEHICULAR|PASO BAJO NIVEL|PASO DESNIVEL VIAL)\b"), "puente"),
 ]
 
 
 def _cat_vial(n_norm: str) -> Optional[str]:
+    if _VIAL_SKIP.search(n_norm):
+        return None
     for regex, cat in _VIAL_CATS:
         if regex.search(n_norm):
             return cat
@@ -249,16 +332,36 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
     secciones: dict cargado desde secciones_civiles.yaml (opcional).
     Si no se provee, usa dimensiones tipicas MOP/Metro (ver _DEFAULT_SECCIONES).
 
-    Formulas aplicadas (todas documentadas en campo 'supuesto'):
-    - Calzada flexible  → carpeta + base + sub-base (m²) + excavacion (m³)
-    - Calzada rigida    → pavimento hormigon + sub-base (m²)
-    - Vereda            → acera hormigon + base (m²)
-    - Cuneta            → ml = area / ancho_cuneta
-    - Tunel (rect.)     → excavacion m³ = area × alto; revestimiento m²; acero kg
-    - Galeria (rect.)   → igual que tunel con seccion de galeria
-    - Tunel metro (TBM) → seccion circular: V = area_planta × area_sec / ancho_planta
-    - Puente            → hormigon m³ = area × espesor; acero kg; moldaje m²
-    - Muro              → hormigon m³; acero kg; moldaje m²
+    Categorias y formulas (29 activas):
+    - calzada flexible    → carpeta + base + sub-base + subrasante (m²) + excav (m³)
+    - calzada_rigida      → pavimento hormigon + sub-base (m²) + excav (m³)
+    - calzada_granular    → base + sub-base (m²) + excav (m³); sin carpeta asfaltica
+    - vereda / anden      → acera hormigon + base (m²)
+    - ciclovia            → ciclovia_pavimento m² + base_granular m²
+    - cuneta              → ml = area / ancho_cuneta
+    - tunel (rect.)       → excavacion m³; revestimiento m²; acero kg
+    - galeria             → igual que tunel con seccion galeria
+    - tunel_metro (TBM)   → seccion circular; dovelas m²; acero kg
+    - revestimiento_tunel → shotcrete / hormigon proyectado m²
+    - puente              → hormigon m³; acero kg; moldaje m² (+ estribos opcional)
+    - pasarela            → hormigon m³; acero kg; moldaje m² (seccion liviana)
+    - muro                → muro_contencion_hormigon m² all-inclusive (+ geotextil opcional)
+    - corte               → m³ = area × profundidad_media
+    - escarpe             → escarpe_y_limpieza m²
+    - terraplen           → m³ = area × altura_media
+    - alcantarilla        → ml = area / ancho_interno
+    - canal               → ml = area / ancho_canal
+    - colector            → ml = area / ancho_zanja; PVC o hormigon por keyword
+    - adoquin             → pavimento_adoquin m²
+    - demarcacion         → demarcacion_vial m²
+    - senaletiva          → un = area / m²_por_senal
+    - iluminacion         → un = area / m²_por_poste
+    - defensa_vial        → ml = area / ancho_guardavia
+    - barrera_nj          → ml = area / ancho_barrera
+    - pozo_inspeccion     → un = area / m²_por_pozo
+    - mejoramiento_suelo  → mejoramiento_suelo_cal m²
+    - geotextil           → geotextil_drenaje m²
+    - revegetacion        → revegetacion_hidrosiembra m²
     """
     sec = _merge_sec(secciones)
     acc: dict[str, dict] = {}
@@ -276,20 +379,45 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
         if cat == "calzada":
             pav = sec["pavimento_flexible"]
             cap = pav["carpeta_asfaltica_m"]
-            base = pav["base_granular_m"]
-            sub = pav["sub_base_granular_m"]
+            n_norm = _norm(nombre)
+            # Conservacion: solo carpeta (no excavar ni reponer base existente)
+            es_conservacion = bool(re.search(r"\b(RECARPETEO|BACHEO|RIEGO DE LIGA|CONSERVACION)\b", n_norm))
             _acum(acc, "carpeta_asfaltica_e60mm", "m2", area,
                   f"Carpeta asfaltica e={int(cap*1000)}mm", nombre,
                   f"area directa; e={cap*1000:.0f} mm")
+            if not es_conservacion:
+                base = pav["base_granular_m"]
+                sub = pav["sub_base_granular_m"]
+                sub_ras = pav.get("subrasante_m", 0.0)
+                _acum(acc, "base_granular_e200mm", "m2", area,
+                      f"Base granular e={int(base*1000)}mm", nombre,
+                      f"area directa; e={base*1000:.0f} mm")
+                _acum(acc, "sub_base_granular_e200mm", "m2", area,
+                      f"Sub-base granular e={int(sub*1000)}mm", nombre,
+                      f"area directa; e={sub*1000:.0f} mm")
+                if sub_ras > 0:
+                    _acum(acc, "subrasante_estabilizada", "m2", area,
+                          f"Subrasante estabilizada e={int(sub_ras*1000)}mm", nombre,
+                          f"area directa; e={sub_ras*1000:.0f} mm")
+                total_excav = cap + base + sub + sub_ras
+                _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav,
+                      "Excavacion tierra comun", nombre,
+                      f"area × {total_excav:.2f} m (paquete estructural)")
+
+        elif cat == "calzada_granular":
+            gr = sec["calzada_granular"]
+            base_g = gr["base_granular_m"]
+            sub_g = gr["sub_base_granular_m"]
             _acum(acc, "base_granular_e200mm", "m2", area,
-                  f"Base granular e={int(base*1000)}mm", nombre,
-                  f"area directa; e={base*1000:.0f} mm")
+                  f"Base granular e={int(base_g*1000)}mm camino granular", nombre,
+                  f"area directa; e={base_g*1000:.0f} mm")
             _acum(acc, "sub_base_granular_e200mm", "m2", area,
-                  f"Sub-base granular e={int(sub*1000)}mm", nombre,
-                  f"area directa; e={sub*1000:.0f} mm")
-            _acum(acc, "excavacion_tierra_comun", "m3", area * (cap + base + sub),
-                  "Excavacion tierra comun", nombre,
-                  f"area × {cap+base+sub:.2f} m (suma capas)")
+                  f"Sub-base granular e={int(sub_g*1000)}mm camino granular", nombre,
+                  f"area directa; e={sub_g*1000:.0f} mm")
+            total_excav_g = base_g + sub_g
+            _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav_g,
+                  "Excavacion tierra comun camino granular", nombre,
+                  f"area × {total_excav_g:.2f} m (base + sub-base)")
 
         elif cat == "calzada_rigida":
             pr = sec["pavimento_rigido"]
@@ -301,6 +429,10 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "sub_base_granular_e200mm", "m2", area,
                   f"Sub-base granular e={int(sub_m*1000)}mm", nombre,
                   f"area directa; e={sub_m*1000:.0f} mm")
+            total_excav_r = losa_m + sub_m
+            _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav_r,
+                  "Excavacion tierra comun pavimento rigido", nombre,
+                  f"area × {total_excav_r:.2f} m (losa + sub-base)")
 
         elif cat == "vereda":
             esp_v = sec["vereda"]["espesor_hormigon_m"]
@@ -311,8 +443,12 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                   "Base granular vereda", nombre, "area directa")
 
         elif cat == "ciclovia":
+            base_cic = sec["ciclovia"]["base_granular_m"]
             _acum(acc, "ciclovia_pavimento", "m2", area,
                   "Ciclovia pavimento", nombre, "area directa")
+            _acum(acc, "base_granular_e200mm", "m2", area,
+                  f"Base granular e={int(base_cic*1000)}mm ciclovia", nombre,
+                  f"area directa; e={base_cic*1000:.0f} mm")
 
         elif cat == "cuneta":
             ancho = sec["cuneta"]["ancho_m"]
@@ -373,6 +509,7 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             s = sec["puente"]
             esp = s["espesor_tablero_m"]
             kg_ac = s["kg_acero_por_m3_tablero"]
+            estr_factor = s.get("estribo_factor", 0.0)
             v_tab = area * esp
             _acum(acc, "hormigon_armado_H30", "m3", v_tab,
                   f"Hormigon armado H30 tablero e={int(esp*100)}cm", nombre,
@@ -383,23 +520,132 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "moldaje_tablero", "m2", area * 2,
                   "Moldaje tablero puente", nombre,
                   "area × 2 caras (intrados + prelosa)")
+            if estr_factor > 0:
+                v_estr = v_tab * estr_factor
+                _acum(acc, "hormigon_armado_H30", "m3", v_estr,
+                      "Hormigon armado H30 estribos", nombre,
+                      f"vol_tablero × {estr_factor:.2f} estribo_factor — ajustar en secciones_civiles.yaml")
+                _acum(acc, "acero_refuerzo_a630", "kg", v_estr * kg_ac,
+                      "Acero refuerzo A630-42H estribos", nombre,
+                      f"{kg_ac} kg/m³ estribos")
 
         elif cat == "muro":
             s = sec["muro_contencion"]
-            esp = s["espesor_m"]
-            kg_ac = s["kg_acero_por_m3"]
-            v_muro = area * esp
+            # All-inclusive m2: precio ONDAC incluye hormigon + acero + moldaje + colocacion
+            # Evita doble conteo vs sumar componentes por separado
             _acum(acc, "muro_contencion_hormigon", "m2", area,
-                  f"Muro de contencion hormigon e={int(esp*100)}cm", nombre,
-                  f"area cara del muro; e={esp:.2f} m")
-            _acum(acc, "hormigon_armado_H30", "m3", v_muro,
-                  f"Hormigon armado H30 muro e={int(esp*100)}cm", nombre,
-                  f"area × {esp:.2f} m espesor — ajustar en secciones_civiles.yaml")
-            _acum(acc, "acero_refuerzo_a630", "kg", v_muro * kg_ac,
-                  "Acero refuerzo A630-42H", nombre,
-                  f"{kg_ac} kg/m³ muro")
-            _acum(acc, "moldaje_muro", "m2", area * 2,
-                  "Moldaje muro", nombre, "area × 2 caras")
+                  "Muro de contencion hormigon (all-inclusive)", nombre,
+                  "precio ONDAC $95.000/m2 incluye hormigon + acero + moldaje")
+            geo_factor = s.get("geotextil_factor", 0.0)
+            if geo_factor > 0:
+                _acum(acc, "geotextil_drenaje", "m2", area * geo_factor,
+                      "Geotextil drenaje trasdos muro", nombre,
+                      f"area × {geo_factor:.2f} (solape incluido)")
+
+        elif cat == "corte":
+            prof = sec["corte"]["profundidad_media_m"]
+            _acum(acc, "excavacion_en_corte", "m3", area * prof,
+                  f"Excavacion en corte h_media={prof:.1f}m", nombre,
+                  f"area × {prof:.1f} m — ajustar en secciones_civiles.yaml")
+
+        elif cat == "escarpe":
+            _acum(acc, "escarpe_y_limpieza", "m2", area,
+                  "Escarpe y limpieza terreno vegetal", nombre, "area directa")
+
+        elif cat == "canal":
+            ancho = sec["canal"]["ancho_m"]
+            _acum(acc, "canal_hormigon_revestido", "ml", area / ancho,
+                  f"Canal hormigon revestido a={ancho:.1f}m", nombre,
+                  f"area / {ancho:.2f} m ancho canal")
+
+        elif cat == "colector":
+            ancho_z = sec["colector"]["ancho_zanja_m"]
+            n_norm = _norm(nombre)
+            es_hormigon = bool(re.search(r"\b(HORMIGON|HA\b|CONCRETO|CAC|CAÑO)\b", n_norm))
+            partida_col = "colector_hormigon_600mm" if es_hormigon else "colector_pvc_300mm"
+            _acum(acc, partida_col, "ml", area / ancho_z,
+                  f"{'Colector hormigon 600mm' if es_hormigon else 'Colector PVC 300mm'} ({ancho_z:.2f}m zanja)",
+                  nombre, f"area / {ancho_z:.2f} m ancho zanja — ajustar en secciones_civiles.yaml")
+
+        elif cat == "pasarela":
+            s = sec["pasarela"]
+            esp = s["espesor_tablero_m"]
+            kg_ac = s["kg_acero_por_m3_tablero"]
+            v_tab = area * esp
+            _acum(acc, "hormigon_armado_H30", "m3", v_tab,
+                  f"Hormigon armado H30 pasarela e={int(esp*100)}cm", nombre,
+                  f"area × {esp:.2f} m — ajustar en secciones_civiles.yaml")
+            _acum(acc, "acero_refuerzo_a630", "kg", v_tab * kg_ac,
+                  "Acero refuerzo A630-42H pasarela", nombre,
+                  f"{kg_ac} kg/m³ tablero pasarela")
+            _acum(acc, "moldaje_tablero", "m2", area * 2,
+                  "Moldaje tablero pasarela", nombre,
+                  "area × 2 caras")
+
+        elif cat == "adoquin":
+            _acum(acc, "pavimento_adoquin_hormigon", "m2", area,
+                  "Pavimento adoquin hormigon sobre lecho arena", nombre, "area directa")
+
+        elif cat == "barrera_nj":
+            ancho = sec["barrera_nj"]["ancho_m"]
+            _acum(acc, "barrera_hormigon_nj", "ml", area / ancho,
+                  f"Barrera hormigon tipo New Jersey a={ancho:.2f}m", nombre,
+                  f"area / {ancho:.2f} m ancho base")
+
+        elif cat == "pozo_inspeccion":
+            m2_pozo = sec["pozo_inspeccion"]["m2_por_pozo"]
+            n_pozos = max(1, round(area / m2_pozo))
+            _acum(acc, "pozo_inspeccion_hormigon", "un", n_pozos,
+                  "Pozo de inspeccion hormigon armado", nombre,
+                  f"area / {m2_pozo:.1f} m² por pozo")
+
+        elif cat == "mejoramiento_suelo":
+            _acum(acc, "mejoramiento_suelo_cal", "m2", area,
+                  "Mejoramiento subrasante con cal/cemento", nombre, "area directa")
+
+        elif cat == "terraplen":
+            altura = sec["terraplen"]["altura_media_m"]
+            _acum(acc, "terraplen_compactado", "m3", area * altura,
+                  f"Terraplen compactado h_media={altura:.1f}m", nombre,
+                  f"area × {altura:.1f} m — ajustar en secciones_civiles.yaml")
+
+        elif cat == "alcantarilla":
+            ancho = sec["alcantarilla"]["ancho_interno_m"]
+            _acum(acc, "alcantarilla_marco_hormigon", "ml", area / ancho,
+                  f"Alcantarilla marco hormigon a={ancho:.1f}m", nombre,
+                  f"area / {ancho:.2f} m ancho interno")
+
+        elif cat == "demarcacion":
+            _acum(acc, "demarcacion_vial_termoplastico", "m2", area,
+                  "Demarcacion vial termoplastico", nombre, "area directa")
+
+        elif cat == "senaletiva":
+            a_senal = sec["senaletiva"]["area_m2_por_senal"]
+            n_senales = max(1, round(area / a_senal))
+            _acum(acc, "senal_vial_retrorreflectante", "un", n_senales,
+                  f"Senal vial retroreflectante ({a_senal:.1f}m²/señal)", nombre,
+                  f"area / {a_senal:.1f} m² por señal — ajustar en secciones_civiles.yaml")
+
+        elif cat == "iluminacion":
+            m2_poste = sec["iluminacion"]["m2_por_poste"]
+            n_postes = max(1, round(area / m2_poste))
+            _acum(acc, "luminaria_led_vial", "un", n_postes,
+                  "Luminaria LED vial (poste + luminaria + instalacion)", nombre,
+                  f"area / {m2_poste:.1f} m² por poste — ajustar en secciones_civiles.yaml")
+
+        elif cat == "defensa_vial":
+            ancho = sec["defensa_vial"]["ancho_m"]
+            _acum(acc, "guardavia_flexible_w", "ml", area / ancho,
+                  "Guardavia flexible W-beam doble ola", nombre,
+                  f"area / {ancho:.2f} m ancho planta")
+
+        elif cat == "geotextil":
+            _acum(acc, "geotextil_drenaje", "m2", area,
+                  "Geotextil / geomalla separacion-drenaje", nombre, "area directa")
+
+        elif cat == "revegetacion":
+            _acum(acc, "revegetacion_hidrosiembra", "m2", area,
+                  "Revegetacion hidrosiembra taludes", nombre, "area directa")
 
     result = []
     for p in acc.values():
@@ -616,15 +862,32 @@ def cubicar(
             "nota": "muros.interior_ml × altura",
         })
 
-    # Puertas: separar por tipo simple/doble si es identificable
-    if puertas_total > 0:
-        # Si todas son simples (default), una sola partida
+    # Puertas: separar por tipo simple/doble segun keyword en tipo
+    _RE_PUERTA_DOBLE = re.compile(r"\b(DOBLE|150|D150|D-150|PPAL|PRINCIPAL 150)\b")
+    puertas_simples = 0
+    puertas_dobles = 0
+    for v in vanos.get("puertas", []):
+        cant = v.get("cantidad", 1) or 1
+        tipo_p = _norm(v.get("tipo", ""))
+        if _RE_PUERTA_DOBLE.search(tipo_p):
+            puertas_dobles += cant
+        else:
+            puertas_simples += cant
+    if puertas_simples > 0:
         partidas.append({
             "partida": "puerta_simple_90cm_instalada",
             "descripcion": "Puerta simple 90cm instalada",
             "unidad": "un",
-            "cantidad": puertas_total,
-            "nota": "conteo total de puertas detectadas",
+            "cantidad": puertas_simples,
+            "nota": "conteo puertas tipo simple",
+        })
+    if puertas_dobles > 0:
+        partidas.append({
+            "partida": "puerta_doble_150cm_instalada",
+            "descripcion": "Puerta doble 150cm instalada",
+            "unidad": "un",
+            "cantidad": puertas_dobles,
+            "nota": "conteo puertas tipo doble/principal",
         })
 
     if ventanas_area > 0:

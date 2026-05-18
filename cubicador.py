@@ -184,10 +184,38 @@ _DEFAULT_SECCIONES: dict = {
     },
     "cuneta": {"ancho_m": 0.40},
     "vereda": {"espesor_hormigon_m": 0.10},
+    "terraplen": {
+        "altura_media_m": 2.00,
+    },
+    "alcantarilla": {
+        "ancho_interno_m": 1.50,
+    },
+    "senaletiva": {
+        "area_m2_por_senal": 1.50,
+    },
+    "iluminacion": {
+        "m2_por_poste": 4.00,
+    },
+    "defensa_vial": {
+        "ancho_m": 0.50,
+    },
 }
+
+# Elementos que contienen palabras de categorías viales pero NO son obras de infraestructura
+_VIAL_SKIP = re.compile(r"\b(MIRADOR|PARADERO|PLAZOLETA|BALCON)\b")
 
 # Categoría simple de elemento vial → lógica de cubicación
 _VIAL_CATS = [
+    # ── Senaletiva y equipamiento vial (antes que CALZADA — pueden incluir la palabra como calificador)
+    (re.compile(r"\b(DEMARCACION|LINEAS DE TRAFICO|TACHAS|TACHONES)\b"), "demarcacion"),
+    (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL|SEÑALIZACION|SEÑAL VIAL)\b"), "senaletiva"),
+    (re.compile(r"\b(ILUMINACION|LUMINARIA|ALUMBRADO VIAL|POSTE LUZ)\b"), "iluminacion"),
+    (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
+    (re.compile(r"\b(REVEGETACION|HIDROSIEMBRA|COBERTURA VEGETAL|SIEMBRA TALUD)\b"), "revegetacion"),
+    # ── Movimiento de tierras y drenaje (antes que CALZADA por el mismo motivo)
+    (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
+    (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
+    # ── Estructuras de pavimento
     (re.compile(r"\b(CALZADA|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA)\b"), "calzada"),
     (re.compile(r"\bPISTA\b"), "calzada"),
     (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
@@ -195,7 +223,7 @@ _VIAL_CATS = [
     (re.compile(r"\b(CICLOVIA|CICLOVÍA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
     (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA)\b"), "cuneta"),
     (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD|ESCOLLERA)\b"), "muro"),
-    # Orden importa: tunel_metro y galeria antes de tunel (mas especificos)
+    # ── Túneles (orden importa: tunel_metro y galeria antes de tunel)
     (re.compile(r"\b(TUNEL METRO|TUBO METRO|TUNEL TBM|TUNEL FERROVIARIO|TUNEL CIRCULAR)\b"), "tunel_metro"),
     (re.compile(r"\b(GALERIA|BOVEDA|HASTIAL)\b"), "galeria"),
     (re.compile(r"\b(TUNEL|PORTAL)\b"), "tunel"),
@@ -205,6 +233,8 @@ _VIAL_CATS = [
 
 
 def _cat_vial(n_norm: str) -> Optional[str]:
+    if _VIAL_SKIP.search(n_norm):
+        return None
     for regex, cat in _VIAL_CATS:
         if regex.search(n_norm):
             return cat
@@ -259,6 +289,13 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
     - Tunel metro (TBM) → seccion circular: V = area_planta × area_sec / ancho_planta
     - Puente            → hormigon m³ = area × espesor; acero kg; moldaje m²
     - Muro              → hormigon m³; acero kg; moldaje m²
+    - Terraplen         → m³ = area × altura_media
+    - Alcantarilla      → ml = area / ancho_interno
+    - Demarcacion       → m² directa (termoplastico)
+    - Senaletiva        → un = area / area_m2_por_senal
+    - Iluminacion       → un = area / m2_por_poste
+    - Defensa vial      → ml = area / ancho_guardavia
+    - Revegetacion      → m² directa (hidrosiembra)
     """
     sec = _merge_sec(secciones)
     acc: dict[str, dict] = {}
@@ -400,6 +437,46 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                   f"{kg_ac} kg/m³ muro")
             _acum(acc, "moldaje_muro", "m2", area * 2,
                   "Moldaje muro", nombre, "area × 2 caras")
+
+        elif cat == "terraplen":
+            altura = sec["terraplen"]["altura_media_m"]
+            _acum(acc, "terraplen_compactado", "m3", area * altura,
+                  f"Terraplen compactado h_media={altura:.1f}m", nombre,
+                  f"area × {altura:.1f} m — ajustar en secciones_civiles.yaml")
+
+        elif cat == "alcantarilla":
+            ancho = sec["alcantarilla"]["ancho_interno_m"]
+            _acum(acc, "alcantarilla_marco_hormigon", "ml", area / ancho,
+                  f"Alcantarilla marco hormigon a={ancho:.1f}m", nombre,
+                  f"area / {ancho:.2f} m ancho interno")
+
+        elif cat == "demarcacion":
+            _acum(acc, "demarcacion_vial_termoplastico", "m2", area,
+                  "Demarcacion vial termoplastico", nombre, "area directa")
+
+        elif cat == "senaletiva":
+            a_senal = sec["senaletiva"]["area_m2_por_senal"]
+            n_senales = max(1, round(area / a_senal))
+            _acum(acc, "senal_vial_retrorreflectante", "un", n_senales,
+                  f"Senal vial retroreflectante ({a_senal:.1f}m²/señal)", nombre,
+                  f"area / {a_senal:.1f} m² por señal — ajustar en secciones_civiles.yaml")
+
+        elif cat == "iluminacion":
+            m2_poste = sec["iluminacion"]["m2_por_poste"]
+            n_postes = max(1, round(area / m2_poste))
+            _acum(acc, "luminaria_led_vial", "un", n_postes,
+                  "Luminaria LED vial (poste + luminaria + instalacion)", nombre,
+                  f"area / {m2_poste:.1f} m² por poste — ajustar en secciones_civiles.yaml")
+
+        elif cat == "defensa_vial":
+            ancho = sec["defensa_vial"]["ancho_m"]
+            _acum(acc, "guardavia_flexible_w", "ml", area / ancho,
+                  "Guardavia flexible W-beam doble ola", nombre,
+                  f"area / {ancho:.2f} m ancho planta")
+
+        elif cat == "revegetacion":
+            _acum(acc, "revegetacion_hidrosiembra", "m2", area,
+                  "Revegetacion hidrosiembra taludes", nombre, "area directa")
 
     result = []
     for p in acc.values():

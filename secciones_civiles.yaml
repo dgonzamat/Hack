@@ -57,3 +57,23 @@ cuneta:
 
 vereda:
   espesor_hormigon_m: 0.10     # e=100mm hormigón de vereda
+
+# ── MOVIMIENTO DE TIERRAS ──────────────────────────────────────────────────────
+terraplen:
+  altura_media_m: 2.00         # altura media de relleno compactado (MOP típico)
+
+# ── DRENAJE TRANSVERSAL ───────────────────────────────────────────────────────
+alcantarilla:
+  ancho_interno_m: 1.50        # ancho interno alcantarilla/cajón hormigón (m)
+
+# ── SEÑALÉTICA VERTICAL ───────────────────────────────────────────────────────
+senaletiva:
+  area_m2_por_senal: 1.50      # área panel señal retroreflectante tipo A1 (m²)
+
+# ── ILUMINACIÓN VIAL ──────────────────────────────────────────────────────────
+iluminacion:
+  m2_por_poste: 4.00           # huella en planta por poste (base + cimentación)
+
+# ── DEFENSAS VIALES ───────────────────────────────────────────────────────────
+defensa_vial:
+  ancho_m: 0.50                # ancho ocupación en planta guardavía W-beam (m)

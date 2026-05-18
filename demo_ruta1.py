@@ -46,6 +46,27 @@ AREA_CUNETA  = LONGITUD_M * 2 * ANCHO_CUNETA_M   # 21km × 2 × 0.6m = 25,200 m�
 # Tunel (area planta = longitud × ancho)
 AREA_TUNEL   = TUNEL_LONGITUD_M * TUNEL_ANCHO_M  # 180 × 9 = 1,620 m²
 
+# Demarcacion vial: marcas termoplasticas (linea centro + bordes) — 21km × 2.4m efectivo
+AREA_DEMARCACION = LONGITUD_M * 2.4              # 50,400 m²
+
+# Senaletiva vertical: ~560 senales (1 c/75m cada lado) × 1.5 m²/panel = 840 m²
+AREA_SENALES     = 560 * 1.5                     # 840 m²
+
+# Iluminacion vial: poste cada 40m ambos lados = 1,050 postes × 4 m² huella
+AREA_ILUMINACION = round(LONGITUD_M / 40 * 2 * 4)  # 4,200 m²
+
+# Terraplenes: 50% de la ruta en seccion de relleno, ancho calzada
+AREA_TERRAPLEN   = round(LONGITUD_M * 0.50 * (ANCHO_CALZADA_M + 2 * ANCHO_BERMA_M))  # 97,650 m²
+
+# Alcantarillas transversales: 1 cada 250m = 84 unidades, L=12m, ancho=1.5m
+AREA_ALCANTARILLA = round(LONGITUD_M / 250 * 12 * 1.5)  # 1,512 m²
+
+# Guardavias: 20% de la ruta, ambos lados, ancho planta 0.5m
+AREA_GUARDAVIA   = round(LONGITUD_M * 0.20 * 2 * 0.5)   # 4,200 m²
+
+# Revegetacion taludes: 30% de la ruta, talud 6m ancho c/lado
+AREA_REVEGETACION = round(LONGITUD_M * 0.30 * 6)         # 37,800 m²
+
 
 def construir_resultado() -> dict:
     """
@@ -90,7 +111,7 @@ def construir_resultado() -> dict:
             "confianza": 0.85,
             "departamento": "Ruta 1",
         },
-        # Miradores (obra civil menor — km 210 y 213)
+        # Miradores (obra civil menor — km 210 y 213): NO son calzada, se excluyen de pavimento
         {
             "nombre": "MIRADOR CALZADA KM210",
             "area_m2": 480.0,
@@ -101,6 +122,53 @@ def construir_resultado() -> dict:
             "nombre": "MIRADOR CALZADA KM213",
             "area_m2": 480.0,
             "confianza": 0.75,
+            "departamento": "Ruta 1",
+        },
+        # Demarcacion y senaletiva
+        {
+            "nombre": "DEMARCACION VIAL CALZADA",
+            "area_m2": float(AREA_DEMARCACION),
+            "confianza": 0.90,
+            "departamento": "Ruta 1",
+        },
+        {
+            "nombre": "SENALETIVA VERTICAL KM0-KM21",
+            "area_m2": float(AREA_SENALES),
+            "confianza": 0.85,
+            "departamento": "Ruta 1",
+        },
+        # Equipamiento vial
+        {
+            "nombre": "ILUMINACION VIAL RUTA 1",
+            "area_m2": float(AREA_ILUMINACION),
+            "confianza": 0.85,
+            "departamento": "Ruta 1",
+        },
+        {
+            "nombre": "GUARDAVIA FLEXIBLE W KM0-KM21",
+            "area_m2": float(AREA_GUARDAVIA),
+            "confianza": 0.85,
+            "departamento": "Ruta 1",
+        },
+        # Movimiento de tierras
+        {
+            "nombre": "TERRAPLEN COMPACTADO",
+            "area_m2": float(AREA_TERRAPLEN),
+            "confianza": 0.80,
+            "departamento": "Ruta 1",
+        },
+        # Drenaje transversal
+        {
+            "nombre": "ALCANTARILLA MARCO HORMIGON",
+            "area_m2": float(AREA_ALCANTARILLA),
+            "confianza": 0.82,
+            "departamento": "Ruta 1",
+        },
+        # Obras verdes
+        {
+            "nombre": "REVEGETACION TALUDES",
+            "area_m2": float(AREA_REVEGETACION),
+            "confianza": 0.78,
             "departamento": "Ruta 1",
         },
     ]
@@ -155,7 +223,12 @@ def main() -> None:
             "espesor_m":      0.45,
             "kg_acero_por_m3": 90,
         },
-        "cuneta": {"ancho_m": ANCHO_CUNETA_M},
+        "cuneta":      {"ancho_m": ANCHO_CUNETA_M},
+        "terraplen":   {"altura_media_m": 1.80},
+        "alcantarilla":{"ancho_interno_m": 1.50},
+        "senaletiva":  {"area_m2_por_senal": 1.50},
+        "iluminacion": {"m2_por_poste": 4.0},
+        "defensa_vial":{"ancho_m": 0.50},
     }
 
     print("\n[2/4] Cubicando...")

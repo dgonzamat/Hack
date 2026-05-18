@@ -518,6 +518,82 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert partidas["cuneta_hormigon_revestida"]["supuesto"] != ""
 
+    # ── Bug fix: MIRADOR no debe clasificarse como calzada ────────────────────
+
+    def test_mirador_calzada_ignorado(self):
+        """MIRADOR CALZADA KMxxx no genera partidas de pavimento."""
+        res = cubicar_vial(self._vial("MIRADOR CALZADA KM210", 480.0))
+        assert res == [], "MIRADOR no debe generar partidas — contiene CALZADA pero es obra menor"
+
+    def test_paradero_ignorado(self):
+        res = cubicar_vial(self._vial("PARADERO BUS", 20.0))
+        assert res == []
+
+    # ── Nuevas categorías viales ──────────────────────────────────────────────
+
+    def test_terraplen_genera_m3(self):
+        """TERRAPLEN → m³ = area × altura_media (default 2.0m)."""
+        res = cubicar_vial(self._vial("TERRAPLEN COMPACTADO", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+        assert partidas["terraplen_compactado"]["unidad"] == "m3"
+        assert partidas["terraplen_compactado"]["cantidad"] == pytest.approx(2000.0, abs=0.1)
+
+    def test_terraplen_altura_custom(self):
+        sec = {"terraplen": {"altura_media_m": 3.0}}
+        res = cubicar_vial(self._vial("TERRAPLEN", 500.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        assert partidas["terraplen_compactado"]["cantidad"] == pytest.approx(1500.0, abs=0.1)
+
+    def test_alcantarilla_genera_ml(self):
+        """ALCANTARILLA → ml = area / ancho_interno (default 1.5m)."""
+        res = cubicar_vial(self._vial("ALCANTARILLA MARCO HORMIGON", 15.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "alcantarilla_marco_hormigon" in partidas
+        assert partidas["alcantarilla_marco_hormigon"]["unidad"] == "ml"
+        assert partidas["alcantarilla_marco_hormigon"]["cantidad"] == pytest.approx(10.0, abs=0.1)
+
+    def test_demarcacion_genera_m2(self):
+        res = cubicar_vial(self._vial("DEMARCACION VIAL", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "demarcacion_vial_termoplastico" in partidas
+        assert partidas["demarcacion_vial_termoplastico"]["unidad"] == "m2"
+        assert partidas["demarcacion_vial_termoplastico"]["cantidad"] == pytest.approx(500.0)
+
+    def test_senaletiva_genera_unidades(self):
+        """SENALETIVA → un = area / 1.5 m² (default)."""
+        res = cubicar_vial(self._vial("SENALETIVA VERTICAL KM0-21", 15.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "senal_vial_retrorreflectante" in partidas
+        assert partidas["senal_vial_retrorreflectante"]["unidad"] == "un"
+        # 15 / 1.5 = 10 señales
+        assert partidas["senal_vial_retrorreflectante"]["cantidad"] == pytest.approx(10.0, abs=0.5)
+
+    def test_iluminacion_genera_unidades(self):
+        """ILUMINACION → un = area / 4.0 m² (default)."""
+        res = cubicar_vial(self._vial("ILUMINACION VIAL", 100.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "luminaria_led_vial" in partidas
+        assert partidas["luminaria_led_vial"]["unidad"] == "un"
+        # 100 / 4 = 25 postes
+        assert partidas["luminaria_led_vial"]["cantidad"] == pytest.approx(25.0, abs=0.5)
+
+    def test_guardavia_genera_ml(self):
+        """GUARDAVIA → ml = area / 0.5m (default)."""
+        res = cubicar_vial(self._vial("GUARDAVIA FLEXIBLE W", 50.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "guardavia_flexible_w" in partidas
+        assert partidas["guardavia_flexible_w"]["unidad"] == "ml"
+        # 50 / 0.5 = 100 ml
+        assert partidas["guardavia_flexible_w"]["cantidad"] == pytest.approx(100.0, abs=0.1)
+
+    def test_revegetacion_genera_m2(self):
+        res = cubicar_vial(self._vial("REVEGETACION TALUDES", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "revegetacion_hidrosiembra" in partidas
+        assert partidas["revegetacion_hidrosiembra"]["unidad"] == "m2"
+        assert partidas["revegetacion_hidrosiembra"]["cantidad"] == pytest.approx(200.0)
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

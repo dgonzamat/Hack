@@ -15,6 +15,7 @@ Uso:
 import argparse
 import pickle
 import re
+import unicodedata
 from pathlib import Path
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -27,7 +28,8 @@ PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
 
 
 def _norm(s: str) -> str:
-    return re.sub(r"\s+", " ", s.upper().replace("-", " ").replace("/", " ")).strip()
+    sin_acentos = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", " ", sin_acentos.upper().replace("-", " ").replace("/", " ")).strip()
 
 
 def _generar_dataset() -> list[tuple[str, str]]:
@@ -39,7 +41,7 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     # ── HÚMEDO ───────────────────────────────────────────────────────────────
     add(["BAÑO", "WC", "TOILET", "DUCHA"], "humedo")
-    for base in ["BAÑO", "WC", "BANO"]:
+    for base in ["BAÑO", "WC", "BANO", "TOILET", "DUCHA"]:
         for n in ["1", "2", "3", "4"]:
             add([f"{base} {n}", f"{base}{n}"], "humedo")
     for q in ["PRINCIPAL", "SUITE", "COMPLETO", "SOCIAL", "SERVICIO", "VISITAS",
@@ -49,7 +51,9 @@ def _generar_dataset() -> list[tuple[str, str]]:
     add(["COCINA", "KITCHENETTE", "COCINETA", "KITCHEN", "COCINA AMERICANA",
          "COCINA ABIERTA", "COCINA SEMI-ABIERTA", "COCINA INTEGRAL",
          "ANTECOCINA", "PANTRY", "WET BAR", "BAR MOJADO", "ISLA COCINA",
-         "COCINA COMEDOR", "COCINA LIVING COMEDOR"], "humedo")
+         "COCINA COMEDOR", "COCINA LIVING COMEDOR",
+         "KITCHEN ABIERTA", "KITCHEN INTEGRADA", "KITCHEN COMEDOR",
+         "KITCHENETTE ESTUDIO", "COCINETA ESTUDIO"], "humedo")
 
     add(["LOGIA", "LOGIA DE SERVICIO", "LOGIA SERVICIO",
          "LAVANDERIA", "LAVANDERÍA", "LAVAND.", "LAVAD.",
@@ -59,7 +63,10 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     add(["SH", "SSHH", "S.H.", "S.S.H.H.", "SS.HH.", "SS HH",
          "SERV HIG", "SERVICIO HIGIENICO", "SERVICIO HIGIÉNICO",
-         "SERV. HIG."], "humedo")
+         "SERV. HIG.",
+         "DUCHA COMUN", "DUCHA VESTUARIO", "DUCHA EXTERIOR",
+         "TOILET SUITE", "TOILET MASTER", "TOILET SOCIAL",
+         "SH 1", "SH 2", "SH VISITAS", "SSHH VISITAS"], "humedo")
 
     add(["COCINA-LAV", "COCINA LAV", "COCINA-LAVANDERIA",
          "COCINA LAVANDERIA", "COCINA LAVANDERÍA",
@@ -131,7 +138,10 @@ def _generar_dataset() -> list[tuple[str, str]]:
     add(["HALL", "HALL DE ACCESO", "HALL DISTRIBUIDOR",
          "HALL DE DISTRIBUCIÓN", "HALL PRINCIPAL", "FOYER",
          "RECIBIDOR", "VESTIBULO", "VESTÍBULO",
-         "ENTRADA", "ACCESO", "INGRESO"], "comun")
+         "ENTRADA", "ACCESO", "INGRESO",
+         "ENTRADA EDIFICIO", "ACCESO EDIFICIO", "INGRESO EDIFICIO",
+         "ACCESO PRINCIPAL", "INGRESO PRINCIPAL", "ENTRADA PRINCIPAL",
+         "RECIBIDOR PRINCIPAL", "ACCESO PEATONAL"], "comun")
 
     add(["PASILLO", "PASILLO DE DISTRIBUCIÓN", "CORREDOR",
          "CORREDOR DE DISTRIBUCIÓN", "CIRCULACION", "CIRCULACIÓN",
@@ -145,11 +155,14 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "PATIO DE LUZ", "PATIO LUZ"], "comun")
 
     add(["RECEPCIÓN", "RECEPCION", "PORTERÍA", "PORTERIA",
-         "SALA MULTIUSO", "SUM", "SALA DE USO MULTIPLE",
+         "SALA MULTIUSO", "SUM", "SALA DE USO MULTIPLE", "SALA USOS MULTIPLES",
          "BODEGA COMUN", "BODEGA COMÚN",
          "ESTACIONAMIENTO", "ESTACIONAMIENTO VISITAS",
          "CUARTO INSTALACIONES", "SALA TECNICA", "SALA MÁQUINAS",
-         "CUARTO ELECTRICO", "SALA ELECTRICA"], "comun")
+         "CUARTO ELECTRICO", "SALA ELECTRICA",
+         "SUM EDIFICIO", "SUM COMUN", "SUM RESIDENCIAL",
+         "SALA TECNICA EDIFICIO", "SALA TECNICA PISO",
+         "PORTERIA ACCESO", "PORTERIA PRINCIPAL"], "comun")
 
     # Lobby / accesos de edificio
     add(["LOBBY", "LOBBY PRINCIPAL", "LOBBY ACCESO", "LOBBY DE ACCESO",
@@ -178,8 +191,9 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SALA CISTERNA", "CUARTO CISTERNA EDIFICIO"], "comun")
 
     # Áreas comunes residenciales
-    add(["TERRAZA COMUN", "TERRAZA COMUNITARIA", "ROOF GARDEN", "ROOFTOP",
-         "PATIO COMUN", "PATIO COMUNITARIO", "JARDIN COMUN",
+    add(["TERRAZA COMUN", "TERRAZA COMUNITARIA", "TERRAZA EDIFICIO",
+         "ROOF GARDEN", "ROOFTOP", "ROOFTOP EDIFICIO", "TERRADO COMUN",
+         "PATIO COMUN", "PATIO COMUNITARIO", "PATIO EDIFICIO", "JARDIN COMUN",
          "AREA PARRILLA COMUN", "QUINCHO COMUN", "ASADOR COMUN",
          "AREA SOCIAL COMUN", "SALON SOCIAL", "SALA EVENTOS EDIFICIO",
          "SALA COWORKING", "SALA ESTUDIO COMUN", "SALA TRABAJO COMUN",
@@ -411,7 +425,7 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     # Salas tecnicas en infraestructura (metro, tuneles, vial) — no son recintos habitables
     add(["SALA SER", "SALA SER METRO", "SALA SER ESTACION",
-         "SALA ELECTRICA", "SALA ELECTRICA METRO", "SALA ELECTRICA TUNEL",
+         "SALA ELECTRICA METRO", "SALA ELECTRICA TUNEL",
          "SALA DE CONTROL TUNEL", "SALA DE CONTROL METRO", "SALA DE BOMBAS TUNEL",
          "SALA DE VENTILACION", "SALA DE EMERGENCIA TUNEL",
          "SALA DE MAQUINAS METRO", "SALA DE EQUIPOS METRO",
@@ -471,7 +485,7 @@ def construir_modelo() -> Pipeline:
         ("feat", FeatureUnion([
             ("char", TfidfVectorizer(
                 analyzer="char_wb",
-                ngram_range=(2, 5),
+                ngram_range=(2, 6),
                 lowercase=False,
                 sublinear_tf=True,
             )),
@@ -484,7 +498,7 @@ def construir_modelo() -> Pipeline:
         ])),
         ("clf", LogisticRegression(
             max_iter=2000,
-            C=5.0,
+            C=10.0,
             class_weight="balanced",
             solver="lbfgs",
         )),
@@ -497,7 +511,16 @@ def main() -> None:
     parser.add_argument("--tune", action="store_true", help="GridSearchCV de hiperparámetros (lento)")
     args = parser.parse_args()
 
-    datos = _generar_dataset()
+    datos_raw = _generar_dataset()
+    # Deduplica: primer label gana; reporta conflictos cross-label
+    seen: dict[str, str] = {}
+    datos = []
+    for nombre, cat in datos_raw:
+        if nombre not in seen:
+            seen[nombre] = cat
+            datos.append((nombre, cat))
+        elif seen[nombre] != cat:
+            print(f"  WARN conflicto: {nombre!r} era {seen[nombre]!r}, ignorando {cat!r}")
     X = [nombre for nombre, _ in datos]
     y = [cat for _, cat in datos]
 

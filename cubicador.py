@@ -143,6 +143,105 @@ def dim_vano(tipo: str) -> tuple[float, float, bool]:
     return VANO_DEFAULT[0], VANO_DEFAULT[1], True
 
 
+def cubicar_vial(viales_detectados: list[dict]) -> list[dict]:
+    """
+    Genera partidas civiles desde elementos viales detectados.
+
+    Cantidades estimadas desde area_m2 con supuestos de seccion tipica:
+    - Cuneta/solera: ancho 0.40 m → ml = area / 0.40
+    - Tunel/galeria: altura seccion 7.0 m → m3 = area × 7.0
+    - Puente/tablero: espesor 0.50 m → m3 = area × 0.50
+    - Resto: area directa en m²
+    Verificar cantidades con planos de seccion transversal antes de uso comercial.
+    """
+    acumulado: dict[str, dict] = {}
+    for elem in viales_detectados:
+        nombre = elem.get("nombre", "?")
+        area = elem.get("area_m2") or 0.0
+        if area <= 0:
+            continue
+        match = _clasificar_vial_elem(_norm(nombre))
+        if match is None:
+            continue
+        partida, unidad, metodo, factor = match
+        if metodo == "area":
+            cantidad = area
+        elif metodo == "ml_por_ancho":
+            cantidad = area / factor if factor > 0 else area
+        else:  # m3_por_altura
+            cantidad = area * factor
+        if partida not in acumulado:
+            acumulado[partida] = {
+                "partida": partida,
+                "descripcion": _VIAL_DESCRIPCIONES.get(partida, partida),
+                "unidad": unidad,
+                "cantidad": 0.0,
+                "tipo": "vial",
+                "elementos": [],
+                "supuesto": _VIAL_SUPUESTOS.get(partida, ""),
+            }
+        acumulado[partida]["cantidad"] += cantidad
+        acumulado[partida]["elementos"].append({"nombre": nombre, "area_m2": area})
+    result = []
+    for p in acumulado.values():
+        p["cantidad"] = round(p["cantidad"], 1)
+        result.append(p)
+    return result
+
+
+def _clasificar_vial_elem(n_norm: str) -> Optional[tuple[str, str, str, float]]:
+    for regex, partida, unidad, metodo, factor in _VIAL_PARTIDA_MAP:
+        if regex.search(n_norm):
+            return partida, unidad, metodo, factor
+    return None
+
+
+# Mapeo: (regex, partida, unidad, metodo, factor)
+# metodo 'area'          → cantidad = area_m2
+# metodo 'ml_por_ancho'  → cantidad = area_m2 / factor  (factor = ancho tipico m)
+# metodo 'm3_por_altura' → cantidad = area_m2 × factor  (factor = altura/espesor m)
+_VIAL_PARTIDA_MAP = [
+    (re.compile(r"\b(CALZADA|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA)\b"),
+     "pavimento_asfaltico_2capas", "m2", "area", 1.0),
+    (re.compile(r"\bPISTA\b"),
+     "pavimento_asfaltico_2capas", "m2", "area", 1.0),
+    (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"),
+     "pavimento_hormigon_rigido", "m2", "area", 1.0),
+    (re.compile(r"\b(VEREDA|ACERA|BANQUETA)\b"),
+     "acera_hormigon_e10cm", "m2", "area", 1.0),
+    (re.compile(r"\b(CICLOVIA|CICLOVÍA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"),
+     "ciclovia_pavimento", "m2", "area", 1.0),
+    (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA)\b"),
+     "cuneta_hormigon_revestida", "ml", "ml_por_ancho", 0.40),
+    (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD|ESCOLLERA)\b"),
+     "muro_contencion_hormigon", "m2", "area", 1.0),
+    (re.compile(r"\b(TUNEL|GALERIA|BOVEDA|HASTIAL)\b"),
+     "excavacion_tunel_roca", "m3", "m3_por_altura", 7.0),
+    (re.compile(r"\b(REVESTIMIENTO TUNEL|SHOTCRETE|HORMIGON PROYECTADO|CONTRABOVEDA)\b"),
+     "revestimiento_tunel_hormigon", "m2", "area", 1.0),
+    (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE)\b"),
+     "hormigon_armado_H30", "m3", "m3_por_altura", 0.50),
+]
+
+_VIAL_DESCRIPCIONES = {
+    "pavimento_asfaltico_2capas": "Pavimento asfaltico 2 capas",
+    "pavimento_hormigon_rigido": "Pavimento hormigon rigido",
+    "acera_hormigon_e10cm": "Acera hormigon e=10cm",
+    "ciclovia_pavimento": "Ciclovia pavimento",
+    "cuneta_hormigon_revestida": "Cuneta hormigon revestida",
+    "muro_contencion_hormigon": "Muro de contencion hormigon",
+    "excavacion_tunel_roca": "Excavacion tunel en roca",
+    "revestimiento_tunel_hormigon": "Revestimiento tunel hormigon",
+    "hormigon_armado_H30": "Hormigon armado H30",
+}
+
+_VIAL_SUPUESTOS = {
+    "cuneta_hormigon_revestida": "ancho tipico asumido 0.40 m — verificar con seccion tipo",
+    "excavacion_tunel_roca": "seccion transversal asumida 7.0 m altura — verificar con planos",
+    "hormigon_armado_H30": "espesor tablero asumido 0.50 m — verificar con planos estructurales",
+}
+
+
 def area_vanos_total(vanos: dict) -> tuple[float, list[dict]]:
     """
     Suma el area total de puertas + ventanas y devuelve detalle de cada tipo.
@@ -369,6 +468,10 @@ def cubicar(
             "cantidad": round(ventanas_area, 1),
             "nota": "area unitaria × cantidad por tipo",
         })
+
+    # Partidas civiles desde elementos viales detectados
+    partidas_vial = cubicar_vial(viales_detectados)
+    partidas.extend(partidas_vial)
 
     return {
         "partidas": partidas,

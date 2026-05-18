@@ -64,7 +64,8 @@ def presupuestar(
             "precio_unitario_clp": precio_un,
             "subtotal_clp": subtotal,
             "fuente": precio_info["fuente"],
-            "nota": p.get("nota", ""),
+            "nota": p.get("nota") or p.get("supuesto", ""),
+            "tipo": p.get("tipo", "residencial"),
         })
 
     gg_monto = int(round(subtotal_neto * gg_utilidad))
@@ -100,7 +101,15 @@ def imprimir_presupuesto(pres: dict) -> None:
     print("═" * 76)
     print(f"  {'PARTIDA':<40} {'CANTIDAD':>12} {'P.UNIT':>10} {'SUBTOTAL':>12}")
     print("─" * 76)
+    tipo_actual = None
     for l in pres["lineas"]:
+        tipo = l.get("tipo", "residencial")
+        if tipo != tipo_actual:
+            if tipo == "vial":
+                print("─" * 76)
+                print("  INFRAESTRUCTURA VIAL (cantidades estimadas — ver supuestos)")
+                print("─" * 76)
+            tipo_actual = tipo
         cant_str = f"{l['cantidad']:.1f} {l['unidad']}"
         print(
             f"  {l['descripcion'][:40]:<40} "

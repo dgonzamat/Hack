@@ -24,6 +24,7 @@ from cubicador import (
     dim_vano,
     area_vanos_total,
     cubicar,
+    cubicar_vial,
 )
 from presupuesto import cargar_precios, presupuestar
 from excel import exportar_excel
@@ -352,6 +353,109 @@ class TestCubicarB1:
         partidas_std = {p["partida"]: p["cantidad"] for p in cub_std["partidas"]}
         partidas_low = {p["partida"]: p["cantidad"] for p in cub_low["partidas"]}
         assert partidas_low["pintura_interior_latex_2manos"] < partidas_std["pintura_interior_latex_2manos"]
+
+
+# ─── cubicar_vial ─────────────────────────────────────────────────────────────
+
+class TestCubicarVial:
+    def _vial(self, nombre, area):
+        return [{"nombre": nombre, "area_m2": area}]
+
+    def test_calzada_genera_pavimento_asfaltico(self):
+        res = cubicar_vial(self._vial("CALZADA", 800.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pavimento_asfaltico_2capas" in partidas
+        assert partidas["pavimento_asfaltico_2capas"]["cantidad"] == pytest.approx(800.0, abs=0.1)
+        assert partidas["pavimento_asfaltico_2capas"]["unidad"] == "m2"
+        assert partidas["pavimento_asfaltico_2capas"]["tipo"] == "vial"
+
+    def test_pista_genera_pavimento_asfaltico(self):
+        res = cubicar_vial(self._vial("PISTA 1", 400.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pavimento_asfaltico_2capas" in partidas
+
+    def test_vereda_genera_acera_hormigon(self):
+        res = cubicar_vial(self._vial("VEREDA PONIENTE", 120.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "acera_hormigon_e10cm" in partidas
+        assert partidas["acera_hormigon_e10cm"]["cantidad"] == pytest.approx(120.0, abs=0.1)
+
+    def test_ciclovia_genera_partida_ciclovia(self):
+        res = cubicar_vial(self._vial("CICLOVIA", 50.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "ciclovia_pavimento" in partidas
+
+    def test_cuneta_genera_ml_dividido_ancho(self):
+        # area=10 m², ancho tipico 0.40 m → 25 ml
+        res = cubicar_vial(self._vial("CUNETA REVESTIDA", 10.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "cuneta_hormigon_revestida" in partidas
+        assert partidas["cuneta_hormigon_revestida"]["unidad"] == "ml"
+        assert partidas["cuneta_hormigon_revestida"]["cantidad"] == pytest.approx(25.0, abs=0.1)
+
+    def test_tunel_genera_m3_por_altura(self):
+        # area planta = 200 m², altura asumida 7.0 m → 1400 m³
+        res = cubicar_vial(self._vial("TUNEL", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_tunel_roca" in partidas
+        assert partidas["excavacion_tunel_roca"]["unidad"] == "m3"
+        assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(1400.0, abs=1.0)
+
+    def test_puente_genera_m3_espesor(self):
+        # area tablero = 500 m², espesor 0.50 m → 250 m³
+        res = cubicar_vial(self._vial("PUENTE VEHICULAR", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(250.0, abs=0.5)
+
+    def test_muro_contencion_genera_m2(self):
+        res = cubicar_vial(self._vial("MURO DE CONTENCION", 45.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+        assert partidas["muro_contencion_hormigon"]["cantidad"] == pytest.approx(45.0, abs=0.1)
+
+    def test_elemento_sin_partida_mapeada_ignorado(self):
+        # "MEDIANA" clasificada como vial pero sin partida mapeada → lista vacia
+        res = cubicar_vial(self._vial("MEDIANA", 20.0))
+        assert res == []
+
+    def test_multiples_calzadas_se_acumulan(self):
+        viales = [
+            {"nombre": "CALZADA PONIENTE", "area_m2": 400.0},
+            {"nombre": "CALZADA ORIENTE", "area_m2": 400.0},
+        ]
+        res = cubicar_vial(viales)
+        partidas = {p["partida"]: p for p in res}
+        assert partidas["pavimento_asfaltico_2capas"]["cantidad"] == pytest.approx(800.0, abs=0.1)
+
+    def test_tipo_vial_en_todas_las_partidas(self):
+        viales = [
+            {"nombre": "CALZADA", "area_m2": 200.0},
+            {"nombre": "VEREDA", "area_m2": 50.0},
+            {"nombre": "TUNEL", "area_m2": 100.0},
+        ]
+        res = cubicar_vial(viales)
+        assert all(p["tipo"] == "vial" for p in res)
+
+    def test_supuesto_incluido_en_cuneta(self):
+        res = cubicar_vial(self._vial("CUNETA", 8.0))
+        partidas = {p["partida"]: p for p in res}
+        assert partidas["cuneta_hormigon_revestida"]["supuesto"] != ""
+
+    def test_cubicar_integra_vial_en_partidas(self):
+        """cubicar() incluye partidas viales junto a las residenciales."""
+        res = dict(RESULTADO_B1)
+        res["recintos"] = RECINTOS_B1 + [
+            {"nombre": "CALZADA", "area_m2": 500.0, "confianza": 0.9, "departamento": None},
+            {"nombre": "VEREDA", "area_m2": 100.0, "confianza": 0.9, "departamento": None},
+        ]
+        cub = cubicar(res, altura_global=2.4)
+        partidas = {p["partida"]: p for p in cub["partidas"]}
+        # Vial aparece en lista de partidas
+        assert "pavimento_asfaltico_2capas" in partidas
+        assert "acera_hormigon_e10cm" in partidas
+        # Residencial no se contamina
+        assert partidas["cielo_volcanita_pintado"]["cantidad"] == pytest.approx(58.3, abs=0.1)
 
 
 # ─── presupuesto ──────────────────────────────────────────────────────────────

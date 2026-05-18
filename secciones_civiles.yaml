@@ -4,115 +4,159 @@
 # Uso:
 #   python poc_cubicacion.py plano.pdf --secciones secciones_civiles.yaml --excel out.xlsx
 #
-# IMPORTANTE: Los valores por defecto son típicos para obras MOP/Metro Santiago.
-# Reemplazarlos con las dimensiones reales del proyecto antes de usar.
+# IMPORTANTE: Los valores por defecto están calibrados con normativa chilena MOP/MINVU.
+# Reemplazarlos con las dimensiones reales del proyecto antes de uso comercial.
 
-# ── TUNELES ────────────────────────────────────────────────────────────────────
+# ── TUNELES CARRETEROS ─────────────────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.5 Cap.10 — Diseño de Túneles
+#      Sección tipo herradura bidireccional carretera de 2 pistas
 tunel:
-  # Túnel carretero con sección de herradura o rectangular (MOP)
-  ancho_excav_m: 8.50          # ancho libre de excavación
-  alto_excav_m: 7.50           # altura libre de excavación
-  tipo_suelo: roca             # roca | mixto | suelo_blando
-  espesor_revestimiento_m: 0.40
-  kg_acero_por_m3_revest: 80   # cuantía acero revestimiento
+  ancho_excav_m: 9.00          # luz libre excavación (2×3.65m pistas + 2×0.90m bermas)
+  alto_excav_m: 8.00           # altura libre excavación (incluye sobre-excavación)
+  tipo_suelo: roca              # roca | mixto | suelo_blando
+  espesor_revestimiento_m: 0.40 # revestimiento definitivo HF-30 (MOP Cap.10.4)
+  kg_acero_por_m3_revest: 80    # cuantía acero revestimiento definitivo
 
+# ── TUNELES METRO TBM ─────────────────────────────────────────────────────────
+# Ref: EIA Línea 7 Metro Santiago (2020), Ficha de Proyecto Metro S.A.
+#      Tuneladora TBM tipo EPB — sección circular
 tunel_metro:
-  # Túnel metro con sección circular (tuneladora TBM)
-  diametro_excav_m: 6.00
-  espesor_dovelas_m: 0.30
-  kg_acero_por_m3_dovela: 100
+  diametro_excav_m: 6.10        # diámetro excavación L6/L7 Metro Santiago
+  espesor_dovelas_m: 0.30       # dovelas prefabricadas H-50 (ancho anillo 1.5m, 8 dovelas)
+  kg_acero_por_m3_dovela: 110   # cuantía típica EIA L7: 100-120 kg/m³
+  impermeabilizacion: true      # membrana HDPE siempre requerida (Norma ITA/Metro S.A.)
 
+# ── GALERIAS DE SERVICIO / EMERGENCIA ─────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.5 Cap.10.8 — Galerías de Bypass
+#      Metro Santiago: galerías de evacuación cada ≤500m (NFPA 130)
 galeria:
-  # Galerías de servicio / emergencia
-  ancho_excav_m: 3.50
-  alto_excav_m: 3.50
-  espesor_revestimiento_m: 0.30
+  ancho_excav_m: 4.00           # galería estándar servicio/emergencia
+  alto_excav_m: 4.00
+  espesor_revestimiento_m: 0.30 # shotcrete + HF-25 revestimiento
   kg_acero_por_m3_revest: 70
 
 # ── PUENTES ────────────────────────────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.5 Cap.8 — Puentes Carreteros
+#      Vigas T prefabricadas pretensadas + losa in situ (tipología más común Chile)
 puente:
-  ancho_tablero_m: 10.00       # ancho total del tablero
-  espesor_tablero_m: 0.55      # espesor promedio (vigas T pretensadas + losa)
-  kg_acero_por_m3_tablero: 120 # cuantía acero tablero
-  estribo_factor: 0.0          # vol_estribo = vol_tablero × factor (0.35 tipico MOP)
+  ancho_tablero_m: 10.20        # 2 pistas 3.65m + 2 bermas 1.0m + bordillos 0.45m
+  espesor_tablero_m: 0.20       # espesor losa in situ (vigas T pretensadas llevan su propio vol)
+  kg_acero_por_m3_tablero: 120  # cuantía acero losa + conexiones (MOP Cap.8.4.3)
+  estribo_factor: 0.0           # vol_estribo = vol_tablero × factor (0.35 tipico — activar en proyecto)
 
 # ── MUROS DE CONTENCION ────────────────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.3 Cap.3.800 — Muros de Contención
+#      Muro en voladizo tipo más común en proyectos MOP/Metro
 muro_contencion:
-  espesor_m: 0.40              # espesor muro en voladizo
-  kg_acero_por_m3: 80
-  zapata_factor: 0.0           # vol_zapata = vol_muro × factor (0.30 para voladizo tipico)
-  geotextil_factor: 0.0        # area_geotextil = area × factor (1.1 con drenaje trasdos)
+  espesor_m: 0.40               # espesor fuste muro en voladizo (h≤6m)
+  kg_acero_por_m3: 80           # cuantía típica muro en voladizo
+  zapata_factor: 0.0            # vol_zapata = vol_muro × factor (0.30 — activar en proyecto)
+  geotextil_factor: 0.0         # area_geotextil = area × 1.10 (trasdós + solape)
 
 # ── PAVIMENTO FLEXIBLE (asfalto) ───────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.8 Tab.8.302.2 — Nivel C (Camino Secundario)
+#      Para autopistas usar Nivel A: carpeta 70mm + base 300mm + subbase 300mm
 pavimento_flexible:
-  carpeta_asfaltica_m: 0.06    # e=60mm carpeta en caliente
-  base_granular_m: 0.20        # e=200mm base granular compactada
-  sub_base_granular_m: 0.20    # e=200mm sub-base granular
-  subrasante_m: 0.15           # e=150mm subrasante compactada/estabilizada (MOP estandar)
+  carpeta_asfaltica_m: 0.060    # carpeta AC-10 densa en caliente (ASTM D3515)
+  base_granular_m: 0.200        # base granular CBR≥80% (NCh 1534-1)
+  sub_base_granular_m: 0.200    # sub-base granular CBR≥30% (NCh 1534-1)
+  subrasante_m: 0.150           # subrasante compactada/estabilizada (AASHTO T-99/T-180)
 
 # ── PAVIMENTO GRANULAR (camino ripio/afirmado) ────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.8 Cap.8.300 — Caminos Básicos
 calzada_granular:
-  base_granular_m: 0.20          # e=200mm base granular compactada
-  sub_base_granular_m: 0.20      # e=200mm sub-base granular
+  base_granular_m: 0.200        # base granular CBR≥30%
+  sub_base_granular_m: 0.200    # sub-base granular CBR≥20%
 
-# ── CICLOVIA ──────────────────────────────────────────────────────────────────
+# ── CICLOVÍA ──────────────────────────────────────────────────────────────────
+# Ref: MINVU Vialidad Ciclo-Inclusiva 2025 — Sección tipo ciclovía segregada
+#      DS 83/2015 MINVU — Estándar mínimo espacio público
 ciclovia:
-  base_granular_m: 0.15          # e=150mm base granular bajo ciclovia (menor que calzada)
+  base_granular_m: 0.150        # base granular CBR≥30% (menor que calzada por carga menor)
+  carpeta_asfaltica_m: 0.040    # carpeta delgada AC-5 (MINVU 2025)
 
 # ── PAVIMENTO RIGIDO (hormigon) ────────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.8 Cap.8.400 — Pavimento Rígido
+#      ACI 318 / NCh 170 — Hormigón estructural
 pavimento_rigido:
-  losa_hormigon_m: 0.22        # e=220mm losa H-30
-  sub_base_m: 0.15             # e=150mm sub-base estabilizada
+  losa_hormigon_m: 0.220        # losa H-30 (±220mm para tránsito pesado)
+  sub_base_m: 0.150             # sub-base estabilizada cemento/cal
 
-# ── DRENAJE ────────────────────────────────────────────────────────────────────
+# ── DRENAJE: CUNETA ────────────────────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.3 Cap.3.706 — Cunetas y Zanjas de Drenaje
+#      Manual de Drenaje Vial MOP (2011) — Cuneta tipo trapezoidal
 cuneta:
-  ancho_m: 0.40                # ancho cuneta triangular/trapezoidal
+  ancho_m: 0.80                 # ancho cuneta trapezoidal MOP (0.40m fondo + taludes 1:1)
 
+# ── VEREDA ─────────────────────────────────────────────────────────────────────
+# Ref: REDEVU 2018 (MINVU) Punto 5.3 — Dimensionamiento de Aceras
+#      Hormigón H-20 mínimo e=100mm + cama de arena 50mm (NCh 2568)
 vereda:
-  espesor_hormigon_m: 0.10     # e=100mm hormigón de vereda
+  espesor_hormigon_m: 0.100     # losa H-20 (mínimo REDEVU)
+  cama_arena_m: 0.050           # cama de nivelación arena fina
 
-# ── MOVIMIENTO DE TIERRAS ──────────────────────────────────────────────────────
+# ── MOVIMIENTO DE TIERRAS: TERRAPLÉN ─────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.3 Cap.3.500 — Movimiento de Tierras
 terraplen:
-  altura_media_m: 2.00         # altura media de relleno compactado (MOP típico)
+  altura_media_m: 2.00          # altura media relleno compactado (ajustar con perfil)
 
-# ── DRENAJE TRANSVERSAL ───────────────────────────────────────────────────────
-alcantarilla:
-  ancho_interno_m: 1.50        # ancho interno alcantarilla/cajón hormigón (m)
-
-
-# ── CORTE Y DESMONTE ──────────────────────────────────────────────────────────
+# ── MOVIMIENTO DE TIERRAS: CORTE ─────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.3 Cap.3.500
 corte:
-  profundidad_media_m: 3.00    # profundidad media de corte en banco/desmonte
+  profundidad_media_m: 3.00     # profundidad media corte en banco/desmonte
+
+# ── DRENAJE TRANSVERSAL: ALCANTARILLA ─────────────────────────────────────────
+# Ref: Manual de Drenaje Vial MOP (2011) Tab.5.2 — Cajones de hormigón
+#      NCh 1623 — Estructuras de alcantarillado
+alcantarilla:
+  ancho_interno_m: 1.50         # cajón tipo 1.5×1.5m (caudal Q10 rural típico)
 
 # ── CANAL REVESTIDO ───────────────────────────────────────────────────────────
+# Ref: Manual de Drenaje Vial MOP (2011) Cap.7 — Canales de Aguas Lluvias
 canal:
-  ancho_m: 2.00                # ancho interno canal hormigon revestido (m)
+  ancho_m: 2.00                 # ancho interno canal hormigón revestido (m)
 
 # ── PASARELA PEATONAL ─────────────────────────────────────────────────────────
+# Ref: Manual de Carreteras MOP Vol.5 Cap.9 — Pasarelas Peatonales
 pasarela:
-  espesor_tablero_m: 0.25      # tablero liviano pasarela peatonal
+  espesor_tablero_m: 0.25       # tablero liviano pasarela mixta (losa+vigas HEB)
   kg_acero_por_m3_tablero: 80
 
+# ── VÍA FÉRREA ────────────────────────────────────────────────────────────────
+# Ref: EFE — Normas Técnicas Vía (2019); Metro Santiago — Norma Vía (L6/L7)
+#      UIC 60 (60 kg/ml) sobre traviesas bibloque, vía normalizada Chile
+via_ferrea:
+  ancho_via_m: 1.44             # trocha 1.435m (estándar) + sobre-anchos: ancho plan 1.44m
+  espesor_balasto_m: 0.350      # balasto limpio 35cm bajo durmiente (EFE/Metro S.A.)
+  ancho_balasto_m: 1.00         # ancho de balasto por vía (1.0m entre hombros)
+  espaciado_traviesas_m: 0.600  # separación traviesas = 600mm (EFE Norma 2019)
+
 # ── SEÑALÉTICA VERTICAL ───────────────────────────────────────────────────────
+# Ref: Manual de Señalización de Tránsito MOP (2012) — Señales tipo A1/A2
 senaletiva:
-  area_m2_por_senal: 1.50      # área panel señal retroreflectante tipo A1 (m²)
+  area_m2_por_senal: 1.50       # área panel señal tipo A1 retroreflectante (m²)
 
 # ── ILUMINACIÓN VIAL ──────────────────────────────────────────────────────────
+# Ref: REDEVU 2018 / DS 83/2015 MINVU — Iluminación espacio público
 iluminacion:
-  m2_por_poste: 4.00           # huella en planta por poste (base + cimentación)
+  m2_por_poste: 4.00            # huella en planta por poste (base 0.6m × cimentación)
 
 # ── DEFENSAS VIALES ───────────────────────────────────────────────────────────
+# Ref: Manual de Señalización de Tránsito MOP (2012) — Defensas camineras
 defensa_vial:
-  ancho_m: 0.50                # ancho ocupación en planta guardavía W-beam (m)
+  ancho_m: 0.50                 # ancho ocupación guardavía W-beam (NCh 3001)
 
 # ── BARRERA HORMIGÓN TIPO NEW JERSEY ─────────────────────────────────────────
+# Ref: AASHTO M306M (adoptado MOP) — Barrera de hormigón tipo F/New Jersey
 barrera_nj:
-  ancho_m: 0.60                # ancho base barrera NJ estándar (m)
+  ancho_m: 0.60                 # ancho base barrera NJ estándar
 
 # ── POZOS DE INSPECCIÓN ───────────────────────────────────────────────────────
+# Ref: NCh 1623 — Cámaras de inspección de alcantarillado; SERVIU Metropolitano
 pozo_inspeccion:
-  m2_por_pozo: 4.00            # huella en planta por pozo (2×2m tipico)
+  m2_por_pozo: 4.00             # huella en planta 2.0m × 2.0m (cámara estándar SERVIU)
 
 # ── COLECTORES Y DRENES LONGITUDINALES ────────────────────────────────────────
+# Ref: Manual de Drenaje Vial MOP (2011) Cap.6 — Colectores longitudinales
 colector:
-  ancho_zanja_m: 0.80          # ancho zanja excavacion (ml = area_planta / ancho_zanja)
+  ancho_zanja_m: 0.80           # ancho zanja excavación para colector PVC/HDPE DN≤300mm

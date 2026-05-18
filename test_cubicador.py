@@ -404,12 +404,12 @@ class TestCubicarVial:
         assert "ciclovia_pavimento" in partidas
 
     def test_cuneta_genera_ml(self):
-        # area=10 m², ancho default 0.40 m → 25 ml
+        # area=10 m², ancho default 0.80 m (cuneta trapezoidal MOP Vol.3 Cap.3.706) → 12.5 ml
         res = cubicar_vial(self._vial("CUNETA REVESTIDA", 10.0))
         partidas = {p["partida"]: p for p in res}
         assert "cuneta_hormigon_revestida" in partidas
         assert partidas["cuneta_hormigon_revestida"]["unidad"] == "ml"
-        assert partidas["cuneta_hormigon_revestida"]["cantidad"] == pytest.approx(25.0, abs=0.1)
+        assert partidas["cuneta_hormigon_revestida"]["cantidad"] == pytest.approx(12.5, abs=0.1)
 
     def test_tunel_genera_tres_partidas(self):
         """Tunel → excavacion m3 + revestimiento m2 + acero kg."""
@@ -474,15 +474,17 @@ class TestCubicarVial:
         assert pt["excavacion_tunel_roca"]["cantidad"] == pytest.approx(300.0, abs=1.0)
 
     def test_tunel_metro_seccion_circular(self):
-        """TUNEL METRO usa seccion circular TBM (D=6.0m por default)."""
+        """TUNEL METRO TBM: dovelas prefabricadas + impermeabilizacion (EIA L7 2020)."""
+        # D=6.10m (default EIA L7) → area_sec=π×3.05²=29.22 m²
+        # longitud = 120/6.10 = 19.67 m; V_excav = 19.67 × 29.22 ≈ 574.6 m³
         res = cubicar_vial(self._vial("TUNEL METRO LINEA 3", 120.0))
         partidas = {p["partida"]: p for p in res}
         assert "excavacion_tunel_roca" in partidas
-        assert "revestimiento_tunel_hormigon" in partidas
+        assert "dovelas_prefabricadas" in partidas     # TBM: dovelas, no revestimiento in situ
+        assert "impermeabilizacion_tunel" in partidas  # requerida Norma ITA/Metro S.A.
         assert "acero_refuerzo_a630" in partidas
-        # D=6.0 → area_sec=π×3²=28.27 m²; longitud=120/6=20 m
-        # V_excav = 20 × 28.27 ≈ 565.5 m³
-        assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(565.5, abs=2.0)
+        assert "revestimiento_tunel_hormigon" not in partidas  # solo para tuneles NATM
+        assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(574.6, abs=3.0)
 
     def test_tunel_metro_custom_diametro(self):
         """Diametro configurable en secciones_civiles.yaml."""
@@ -493,6 +495,30 @@ class TestCubicarVial:
         # D=9.0 → area_sec=π×4.5²=63.62 m²; longitud=180/9=20 m
         # V_excav = 20 × 63.62 ≈ 1272.3 m³
         assert partidas["excavacion_tunel_roca"]["cantidad"] == pytest.approx(1272.3, abs=3.0)
+
+    def test_via_ferrea_genera_partidas(self):
+        """VIA FERREA → via_ferrea_monovia ml + balasto m3 + traviesas un + subbalasto m2."""
+        # area=144 m² (100m × 1.44m) → longitud=100ml
+        # balasto: 100 × 0.35 × 1.00 = 35 m3
+        # traviesas: 100 / 0.60 ≈ 166.7 un
+        res = cubicar_vial(self._vial("VIA FERREA METRO", 144.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "via_ferrea_monovia" in partidas
+        assert "balasto_granular" in partidas
+        assert "traviesa_hormigon" in partidas
+        assert "sub_base_granular_e200mm" in partidas
+        assert partidas["via_ferrea_monovia"]["unidad"] == "ml"
+        assert partidas["via_ferrea_monovia"]["cantidad"] == pytest.approx(100.0, abs=0.5)
+        assert partidas["balasto_granular"]["cantidad"] == pytest.approx(35.0, abs=0.5)
+        assert partidas["traviesa_hormigon"]["cantidad"] == pytest.approx(166.7, abs=1.0)
+
+    def test_via_ferrea_keywords(self):
+        """Palabras clave ferreoviarias → categoria via_ferrea."""
+        for nombre in ["VIA FERREA", "TROCHA", "BALASTRO", "TRAVIESA HORMIGON", "RIEL UIC60"]:
+            res = cubicar_vial(self._vial(nombre, 100.0))
+            assert len(res) > 0, f"{nombre} no genero partidas"
+            assert any(p["partida"] == "via_ferrea_monovia" for p in res), \
+                f"{nombre} no genero via_ferrea_monovia"
 
     def test_descripciones_dinamicas_calzada(self):
         """Descripciones reflejan el espesor configurado, no un valor hardcodeado."""

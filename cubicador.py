@@ -23,7 +23,10 @@ _COMUNES = re.compile(
     r"\b(HALL|PASILLO|CORREDOR|ESCALERA|ASCENSOR|DUCTO|SHAFT|RECEP|CIRCULACION)\b"
 )
 _VIALES = re.compile(
-    r"\b(CALZADA|PISTA|VEREDA|TUNEL|TUNEL|PORTAL|CUNETA|PUENTE|ROTONDA|VIADUCTO|BERMA|CARRIL)\b"
+    r"\b(CALZADA|PISTA|VEREDA|TUNEL|PORTAL|CUNETA|PUENTE|ROTONDA|VIADUCTO|BERMA|CARRIL|"
+    r"TERRAPLEN|CORTE|ESCARPE|DESMONTE|ALCANTARILLA|CANAL|ACEQUIA|DEMARCACION|"
+    r"SENALETIVA|SENALIZACION|ILUMINACION|LUMINARIA|GUARDAVIA|DEFENSA CAMINERA|"
+    r"REVEGETACION|PASARELA|ADOQUIN|EMPEDRADO|BARRERA|POZO|MEJORAMIENTO|SUBRASANTE)\b"
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
@@ -168,11 +171,13 @@ _DEFAULT_SECCIONES: dict = {
         "ancho_tablero_m": 10.0,
         "espesor_tablero_m": 0.55,
         "kg_acero_por_m3_tablero": 120,
+        "estribo_factor": 0.0,      # vol_estribo = vol_tablero × factor (0.35 tipico MOP)
     },
     "muro_contencion": {
         "espesor_m": 0.40,
         "kg_acero_por_m3": 80,
-        "zapata_factor": 0.0,    # vol_zapata = vol_muro × factor (0.30 para voladizo tipico MOP)
+        "zapata_factor": 0.0,       # vol_zapata = vol_muro × factor (0.30 para voladizo tipico MOP)
+        "geotextil_factor": 0.0,    # area_geotextil = area × factor (1.1 para muro con drenaje)
     },
     "pavimento_flexible": {
         "carpeta_asfaltica_m": 0.06,
@@ -211,6 +216,13 @@ _DEFAULT_SECCIONES: dict = {
     "defensa_vial": {
         "ancho_m": 0.50,
     },
+    "barrera_nj": {
+        "ancho_m": 0.60,          # ancho base barrera New Jersey
+    },
+    "pozo_inspeccion": {
+        "m2_por_pozo": 4.00,      # huella en planta por pozo (2m × 2m tipico)
+    },
+    "mejoramiento_suelo": {},     # sin parametros: m² directa
 }
 
 # Elementos que contienen palabras de categorías viales pero NO son obras de infraestructura
@@ -222,7 +234,10 @@ _VIAL_CATS = [
     (re.compile(r"\b(DEMARCACION|LINEAS DE TRAFICO|TACHAS|TACHONES)\b"), "demarcacion"),
     (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL|SEÑALIZACION|SEÑAL VIAL)\b"), "senaletiva"),
     (re.compile(r"\b(ILUMINACION|LUMINARIA|ALUMBRADO VIAL|POSTE LUZ)\b"), "iluminacion"),
+    (re.compile(r"\b(BARRERA HORMIGON|NEW JERSEY|BARRERA NJ|BARRERA RIGIDA|MURO NEW JERSEY)\b"), "barrera_nj"),
     (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
+    (re.compile(r"\b(POZO DE INSPECCION|CAMARA DE INSPECCION|POZO VISITA|SUMIDERO|POZO AGUAS)\b"), "pozo_inspeccion"),
+    (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO)\b"), "mejoramiento_suelo"),
     (re.compile(r"\b(REVEGETACION|HIDROSIEMBRA|COBERTURA VEGETAL|SIEMBRA TALUD)\b"), "revegetacion"),
     # ── Movimiento de tierras y drenaje (antes que CALZADA)
     (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
@@ -441,6 +456,7 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             s = sec["puente"]
             esp = s["espesor_tablero_m"]
             kg_ac = s["kg_acero_por_m3_tablero"]
+            estr_factor = s.get("estribo_factor", 0.0)
             v_tab = area * esp
             _acum(acc, "hormigon_armado_H30", "m3", v_tab,
                   f"Hormigon armado H30 tablero e={int(esp*100)}cm", nombre,
@@ -451,6 +467,14 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "moldaje_tablero", "m2", area * 2,
                   "Moldaje tablero puente", nombre,
                   "area × 2 caras (intrados + prelosa)")
+            if estr_factor > 0:
+                v_estr = v_tab * estr_factor
+                _acum(acc, "hormigon_armado_H30", "m3", v_estr,
+                      "Hormigon armado H30 estribos", nombre,
+                      f"vol_tablero × {estr_factor:.2f} estribo_factor — ajustar en secciones_civiles.yaml")
+                _acum(acc, "acero_refuerzo_a630", "kg", v_estr * kg_ac,
+                      "Acero refuerzo A630-42H estribos", nombre,
+                      f"{kg_ac} kg/m³ estribos")
 
         elif cat == "muro":
             s = sec["muro_contencion"]
@@ -477,6 +501,11 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                 _acum(acc, "acero_refuerzo_a630", "kg", v_zap * kg_ac,
                       "Acero refuerzo A630-42H zapata", nombre,
                       f"{kg_ac} kg/m³ zapata")
+            geo_factor = s.get("geotextil_factor", 0.0)
+            if geo_factor > 0:
+                _acum(acc, "geotextil_drenaje", "m2", area * geo_factor,
+                      "Geotextil drenaje trasdos muro", nombre,
+                      f"area × {geo_factor:.2f} (solape incluido)")
 
         elif cat == "corte":
             prof = sec["corte"]["profundidad_media_m"]
@@ -512,6 +541,23 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
         elif cat == "adoquin":
             _acum(acc, "pavimento_adoquin_hormigon", "m2", area,
                   "Pavimento adoquin hormigon sobre lecho arena", nombre, "area directa")
+
+        elif cat == "barrera_nj":
+            ancho = sec["barrera_nj"]["ancho_m"]
+            _acum(acc, "barrera_hormigon_nj", "ml", area / ancho,
+                  f"Barrera hormigon tipo New Jersey a={ancho:.2f}m", nombre,
+                  f"area / {ancho:.2f} m ancho base")
+
+        elif cat == "pozo_inspeccion":
+            m2_pozo = sec["pozo_inspeccion"]["m2_por_pozo"]
+            n_pozos = max(1, round(area / m2_pozo))
+            _acum(acc, "pozo_inspeccion_hormigon", "un", n_pozos,
+                  "Pozo de inspeccion hormigon armado", nombre,
+                  f"area / {m2_pozo:.1f} m² por pozo")
+
+        elif cat == "mejoramiento_suelo":
+            _acum(acc, "mejoramiento_suelo_cal", "m2", area,
+                  "Mejoramiento subrasante con cal/cemento", nombre, "area directa")
 
         elif cat == "terraplen":
             altura = sec["terraplen"]["altura_media_m"]

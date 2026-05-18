@@ -699,6 +699,74 @@ class TestCubicarVial:
         # muro: 100×0.40=40 m³; zapata: 40×0.30=12 m³; total=52 m³
         assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(52.0, abs=0.5)
 
+    def test_muro_con_geotextil(self):
+        """geotextil_factor=1.1 agrega partida geotextil_drenaje."""
+        sec = {"muro_contencion": {"espesor_m": 0.40, "kg_acero_por_m3": 80,
+                                    "zapata_factor": 0.0, "geotextil_factor": 1.1}}
+        res = cubicar_vial(self._vial("MURO DE CONTENCION", 100.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        assert "geotextil_drenaje" in partidas
+        assert partidas["geotextil_drenaje"]["cantidad"] == pytest.approx(110.0, abs=0.1)
+
+    # ── Puente con estribos ───────────────────────────────────────────────────
+
+    def test_puente_sin_estribo_por_defecto(self):
+        """estribo_factor=0 por defecto: hormigon solo del tablero."""
+        res = cubicar_vial(self._vial("PUENTE VEHICULAR", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        # solo tablero: 500×0.55=275 m³
+        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(275.0, abs=1.0)
+
+    def test_puente_con_estribo(self):
+        """estribo_factor=0.35 agrega 35% de vol_tablero como estribos."""
+        sec = {"puente": {"espesor_tablero_m": 0.55, "kg_acero_por_m3_tablero": 120,
+                           "estribo_factor": 0.35}}
+        res = cubicar_vial(self._vial("PUENTE VEHICULAR", 500.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        # tablero=275 + estribos=275×0.35=96.25 → total=371.25 m³
+        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(371.25, abs=1.0)
+
+    # ── Barrera NJ ────────────────────────────────────────────────────────────
+
+    def test_barrera_nj_genera_ml(self):
+        """BARRERA HORMIGON → ml = area / 0.60m (default)."""
+        res = cubicar_vial(self._vial("BARRERA HORMIGON NEW JERSEY", 60.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "barrera_hormigon_nj" in partidas
+        assert partidas["barrera_hormigon_nj"]["unidad"] == "ml"
+        # 60 / 0.60 = 100 ml
+        assert partidas["barrera_hormigon_nj"]["cantidad"] == pytest.approx(100.0, abs=0.1)
+
+    def test_barrera_nj_no_confunde_con_guardavia(self):
+        """BARRERA HORMIGON → barrera_nj, BARRERA METALICA → guardavia."""
+        res_nj = cubicar_vial(self._vial("BARRERA HORMIGON NJ", 60.0))
+        res_gv = cubicar_vial(self._vial("BARRERA METALICA W", 60.0))
+        partidas_nj = {p["partida"]: p for p in res_nj}
+        partidas_gv = {p["partida"]: p for p in res_gv}
+        assert "barrera_hormigon_nj" in partidas_nj
+        assert "guardavia_flexible_w" in partidas_gv
+        assert "barrera_hormigon_nj" not in partidas_gv
+
+    # ── Pozo de inspección ────────────────────────────────────────────────────
+
+    def test_pozo_inspeccion_genera_unidades(self):
+        """POZO DE INSPECCION → un = area / 4.0 m² (default)."""
+        res = cubicar_vial(self._vial("POZO DE INSPECCION", 20.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pozo_inspeccion_hormigon" in partidas
+        assert partidas["pozo_inspeccion_hormigon"]["unidad"] == "un"
+        # 20 / 4 = 5 pozos
+        assert partidas["pozo_inspeccion_hormigon"]["cantidad"] == pytest.approx(5.0, abs=0.5)
+
+    # ── Mejoramiento de suelo ─────────────────────────────────────────────────
+
+    def test_mejoramiento_suelo_genera_m2(self):
+        res = cubicar_vial(self._vial("MEJORAMIENTO SUBRASANTE CAL", 1200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "mejoramiento_suelo_cal" in partidas
+        assert partidas["mejoramiento_suelo_cal"]["unidad"] == "m2"
+        assert partidas["mejoramiento_suelo_cal"]["cantidad"] == pytest.approx(1200.0)
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

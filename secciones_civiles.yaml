@@ -34,12 +34,14 @@ puente:
   ancho_tablero_m: 10.00       # ancho total del tablero
   espesor_tablero_m: 0.55      # espesor promedio (vigas T pretensadas + losa)
   kg_acero_por_m3_tablero: 120 # cuantía acero tablero
+  estribo_factor: 0.0          # vol_estribo = vol_tablero × factor (0.35 tipico MOP)
 
 # ── MUROS DE CONTENCION ────────────────────────────────────────────────────────
 muro_contencion:
   espesor_m: 0.40              # espesor muro en voladizo
   kg_acero_por_m3: 80
   zapata_factor: 0.0           # vol_zapata = vol_muro × factor (0.30 para voladizo tipico)
+  geotextil_factor: 0.0        # area_geotextil = area × factor (1.1 con drenaje trasdos)
 
 # ── PAVIMENTO FLEXIBLE (asfalto) ───────────────────────────────────────────────
 pavimento_flexible:
@@ -93,3 +95,11 @@ iluminacion:
 # ── DEFENSAS VIALES ───────────────────────────────────────────────────────────
 defensa_vial:
   ancho_m: 0.50                # ancho ocupación en planta guardavía W-beam (m)
+
+# ── BARRERA HORMIGÓN TIPO NEW JERSEY ─────────────────────────────────────────
+barrera_nj:
+  ancho_m: 0.60                # ancho base barrera NJ estándar (m)
+
+# ── POZOS DE INSPECCIÓN ───────────────────────────────────────────────────────
+pozo_inspeccion:
+  m2_por_pozo: 4.00            # huella en planta por pozo (2×2m tipico)

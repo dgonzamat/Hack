@@ -51,3 +51,7 @@ guardavia_flexible_w,ml,32000,ONDAC 2026Q1,2026-04
 revegetacion_hidrosiembra,m2,3500,ONDAC 2026Q1,2026-04
 # Partidas civiles — estructuras adicionales
 pavimento_adoquin_hormigon,m2,45000,ONDAC 2026Q1,2026-04
+barrera_hormigon_nj,ml,120000,ONDAC 2026Q1,2026-04
+pozo_inspeccion_hormigon,un,850000,ONDAC 2026Q1,2026-04
+mejoramiento_suelo_cal,m2,8000,ONDAC 2026Q1,2026-04
+geotextil_drenaje,m2,4500,ONDAC 2026Q1,2026-04

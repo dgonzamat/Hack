@@ -51,7 +51,7 @@ pavimento_flexible:
   subrasante_m: 0.15           # e=150mm subrasante compactada/estabilizada (MOP estandar)
 
 # ── PAVIMENTO GRANULAR (camino ripio/afirmado) ────────────────────────────────
-pavimento_granular:
+calzada_granular:
   base_granular_m: 0.20          # e=200mm base granular compactada
   sub_base_granular_m: 0.20      # e=200mm sub-base granular
 

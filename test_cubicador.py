@@ -109,8 +109,36 @@ class TestClasificarRecinto:
     def test_nombre_desconocido_heuristico(self):
         # Un nombre completamente desconocido debe tener confianza baja → fue_heuristica
         cat, heur = clasificar_recinto("ZAGUÁN XKQZ")
-        assert cat in ("seco", "comun", "humedo", "exterior")
+        assert cat in ("seco", "comun", "humedo", "exterior", "vial")
         assert heur  # confianza ML < 0.40 para nombre absurdo
+
+    def test_vial_calzada(self):
+        cat, _ = clasificar_recinto("CALZADA")
+        assert cat == "vial"
+
+    def test_vial_tunel(self):
+        cat, _ = clasificar_recinto("TUNEL")
+        assert cat == "vial"
+
+    def test_vial_vereda(self):
+        cat, _ = clasificar_recinto("VEREDA")
+        assert cat == "vial"
+
+    def test_vial_portal(self):
+        cat, _ = clasificar_recinto("PORTAL NORTE")
+        assert cat == "vial"
+
+    def test_vial_cuneta(self):
+        cat, _ = clasificar_recinto("CUNETA HORMIGON")
+        assert cat == "vial"
+
+    def test_vial_puente(self):
+        cat, _ = clasificar_recinto("PUENTE VEHICULAR")
+        assert cat == "vial"
+
+    def test_vial_metro(self):
+        cat, _ = clasificar_recinto("ANDEN METRO")
+        assert cat == "vial"
 
     def test_word_boundary_no_falso_positivo(self):
         # "TALLER" no debe matchear "HALL" (sin word boundary sería un bug)
@@ -304,6 +332,18 @@ class TestCubicarB1:
         ]
         cub = cubicar(res, altura_global=2.4)
         assert "BODEGA" in cub["recintos_sin_area"]
+
+    def test_vial_excluido_de_cubicacion(self):
+        res = dict(RESULTADO_B1)
+        res["recintos"] = RECINTOS_B1 + [
+            {"nombre": "CALZADA", "area_m2": 500.0, "confianza": 0.9, "departamento": None},
+            {"nombre": "TUNEL", "area_m2": 200.0, "confianza": 0.9, "departamento": None},
+        ]
+        cub = cubicar(res, altura_global=2.4)
+        assert len(cub["viales_detectados"]) == 2
+        # Cielo no debe incluir calzada ni tunel
+        partidas = {p["partida"]: p["cantidad"] for p in cub["partidas"]}
+        assert partidas["cielo_volcanita_pintado"] == pytest.approx(58.3, abs=0.1)
 
     def test_alturas_override(self):
         cub_std = cubicar(RESULTADO_B1, altura_global=2.4)

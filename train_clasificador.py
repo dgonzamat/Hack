@@ -150,6 +150,79 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "CUARTO INSTALACIONES", "SALA TECNICA", "SALA MÁQUINAS",
          "CUARTO ELECTRICO", "SALA ELECTRICA"], "comun")
 
+    # ── VIAL (infraestructura civil) ──────────────────────────────────────────
+    # Calzada / pavimento
+    add(["CALZADA", "PISTA", "PISTA DE RODADO", "CARRIL",
+         "CARRIL DERECHO", "CARRIL IZQUIERDO", "CARRIL CENTRAL",
+         "CALZADA NORTE", "CALZADA SUR", "CALZADA ORIENTE", "CALZADA PONIENTE",
+         "VIA RAPIDA", "AUTOPISTA", "RUTA", "CAMINO",
+         "PAVIMENTO", "PAVIMENTO ASFALTICO", "PAVIMENTO FLEXIBLE",
+         "PAVIMENTO RIGIDO", "CARPETA ASFALTICA"], "vial")
+    for n in ["1", "2", "3", "4"]:
+        add([f"PISTA {n}", f"CARRIL {n}", f"VIA {n}"], "vial")
+
+    # Aceras / ciclovias
+    add(["VEREDA", "ACERA", "BANQUETA", "ANDÉN",
+         "CICLOVÍA", "CICLOVIA", "PISTA BICI", "CICLOCARRIL",
+         "BERMA", "BERMA PAVIMENTADA", "BERMA DERECHA", "BERMA IZQUIERDA",
+         "ZONA PEATONAL", "PASEO PEATONAL", "PASEO",
+         "CALZADA PEATONAL", "SENDA PEATONAL"], "vial")
+
+    # Intersecciones / rotondas
+    add(["ROTONDA", "GLORIETA", "INTERSECCION", "CRUCE",
+         "CRUCE PEATONAL", "PASO PEATONAL", "PASO DE CEBRA",
+         "BIFURCACION", "EMPALME", "ENLACE",
+         "ISLA", "ISLETA", "MEDIANA", "BANDEJÓN",
+         "CANTON", "SEPARADOR VIAL"], "vial")
+
+    # Cunetas / drenaje vial
+    add(["CUNETA", "CUNETA HORMIGON", "CUNETA REVESTIDA",
+         "FOSO", "ZANJON", "CANAL DE DRENAJE", "CANAL VIAL",
+         "COLECTOR", "COLECTOR VIAL", "SUMIDERO",
+         "BAJADA DE AGUAS", "DESCOLE", "SOLERA"], "vial")
+
+    # Túneles
+    add(["TUNEL", "TÚNEL", "GALERIA", "GALERÍA",
+         "PORTAL DE TUNEL", "PORTAL NORTE", "PORTAL SUR",
+         "TUNEL CARRETERO", "TUNEL VIAL", "TUNEL PEATONAL",
+         "BOCA DE TUNEL", "EMBOQUILLADO",
+         "NICHO DE EMERGENCIA", "NICHO", "NICHO DE ESCAPE",
+         "CAMARA DE VENTILACION", "POZO DE VENTILACION",
+         "GALERIA DE SERVICIO", "GALERIA DE EMERGENCIA",
+         "CAMARA DE BOMBEO TUNEL", "CAMARA DE CONTROL TUNEL",
+         "ZONA DE ESCAPE", "VIA DE ESCAPE",
+         "REFUGIO DE EMERGENCIA", "REFUGIO"], "vial")
+
+    # Puentes / estructuras viales
+    add(["PUENTE", "VIADUCTO", "PASO ELEVADO", "PASO SUPERIOR",
+         "PASO INFERIOR", "PASO DESNIVEL", "PASO A DESNIVEL",
+         "TABLERO", "TABLERO DE PUENTE", "LOSA DE PUENTE",
+         "MURO DE ALA", "MURO TESTA", "ESTRIBO",
+         "PILA", "PILON", "APOYO DE PUENTE",
+         "BARANDADO", "BARANDA VIAL"], "vial")
+
+    # Muros de contención / taludes
+    add(["MURO DE CONTENCION", "MURO DE CONTENCIÓN",
+         "MURO DE SOSTENIMIENTO", "MURO PANTALLA",
+         "TALUD", "TALUD DE CORTE", "TALUD DE RELLENO",
+         "TERRAPLÉN", "TERRAPLEN", "BANQUETA DE TALUD",
+         "CUNETA DE PIE DE TALUD", "CUNETA DE CORONACION"], "vial")
+
+    # Señalización / infraestructura de apoyo
+    add(["ÁREA DE SERVICIO", "AREA DE SERVICIO",
+         "PLAZA DE PEAJE", "CASETA DE PEAJE",
+         "ESTACION DE PEAJE", "PÓRTICO", "PORTICO",
+         "AREA DE DESCANSO", "MIRADOR",
+         "SALA DE CONTROL VIAL", "CASETA DE CONTROL",
+         "CENTRO DE CONTROL DE TUNEL"], "vial")
+
+    # Metro / ferroviario
+    add(["ANDÉN METRO", "ANDEN METRO", "PLATAFORMA",
+         "TUNEL METRO", "TUNEL FERROVIARIO", "VIA FERREA",
+         "ESTACION", "ESTACIÓN", "MEZZANINE", "CONCOURSE",
+         "SALA DE MAQUINAS METRO", "CAMARA TECNICA METRO",
+         "POZO DE ACCESO", "POZO TECNICO"], "vial")
+
     return datos
 
 
@@ -193,7 +266,7 @@ def main() -> None:
     modelo.fit(X, y)
     y_pred = modelo.predict(X)
     print("\nClasificación sobre dataset completo:")
-    print(classification_report(y, y_pred, target_names=["comun", "exterior", "humedo", "seco"]))
+    print(classification_report(y, y_pred, target_names=["comun", "exterior", "humedo", "seco", "vial"]))
 
     if not args.eval:
         with open(PKL_PATH, "wb") as f:
@@ -207,6 +280,7 @@ def main() -> None:
 
 def _validar_edge_cases(modelo: Pipeline) -> None:
     casos = [
+        # Residencial
         ("KITCHENETTE", "humedo"),
         ("SH", "humedo"),
         ("SSHH", "humedo"),
@@ -221,6 +295,21 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
         ("HALL DISTRIBUIDOR", "comun"),
         ("SHAFT", "comun"),
         ("SUM", "comun"),
+        # Civil / vial
+        ("CALZADA", "vial"),
+        ("PISTA 1", "vial"),
+        ("VEREDA", "vial"),
+        ("CICLOVÍA", "vial"),
+        ("TUNEL", "vial"),
+        ("PORTAL NORTE", "vial"),
+        ("NICHO DE EMERGENCIA", "vial"),
+        ("ROTONDA", "vial"),
+        ("CUNETA", "vial"),
+        ("PUENTE", "vial"),
+        ("MURO DE CONTENCION", "vial"),
+        ("PLAZA DE PEAJE", "vial"),
+        ("ANDEN METRO", "vial"),
+        ("TUNEL METRO", "vial"),
     ]
     print("\nEdge cases:")
     ok = errores = 0

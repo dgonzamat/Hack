@@ -108,10 +108,10 @@ class TestClasificarRecinto:
         assert cat == "seco"
 
     def test_nombre_desconocido_heuristico(self):
-        # Un nombre completamente desconocido debe tener confianza baja → fue_heuristica
-        cat, heur = clasificar_recinto("ZAGUÁN XKQZ")
+        # Nombre inventado sin señal lingüística → confianza ML < 0.60 → fue_heuristica
+        cat, heur = clasificar_recinto("AAABBB XYZQ99")
         assert cat in ("seco", "comun", "humedo", "exterior", "vial")
-        assert heur  # confianza ML < 0.40 para nombre absurdo
+        assert heur
 
     def test_vial_calzada(self):
         cat, _ = clasificar_recinto("CALZADA")
@@ -1110,6 +1110,101 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "carpeta_asfaltica_e60mm" in partidas
         assert "base_granular_e200mm" in partidas
+
+    # ── Imprimacion y riego (conservacion superficial) ────────────────────────
+
+    def test_imprimacion_asfaltica_solo_carpeta(self):
+        """IMPRIMACION ASFALTICA → carpeta (conservacion, sin excavar base)."""
+        res = cubicar_vial(self._vial("IMPRIMACION ASFALTICA BASE GRANULAR", 5000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" not in partidas
+        assert "excavacion_tierra_comun" not in partidas
+
+    def test_riego_de_adherencia_sin_excavacion(self):
+        res = cubicar_vial(self._vial("RIEGO DE ADHERENCIA ENTRE CAPAS", 3000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "excavacion_tierra_comun" not in partidas
+
+    # ── Drenaje subterraneo ───────────────────────────────────────────────────
+
+    def test_subdren_transversal_genera_colector(self):
+        """SUBDREN TRANSVERSAL → colector (tuberia perforada = PVC)."""
+        res = cubicar_vial(self._vial("SUBDREN TRANSVERSAL CALZADA KM8", 120.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+
+    def test_drene_longitudinal_genera_colector(self):
+        res = cubicar_vial(self._vial("DRENE LONGITUDINAL BERMA", 80.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+
+    def test_contracuneta_genera_canal(self):
+        """CONTRACUNETA (drenaje coronamiento corte) → canal_hormigon_revestido."""
+        res = cubicar_vial(self._vial("CONTRACUNETA CORTE TALUD KM3", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "canal_hormigon_revestido" in partidas
+
+    # ── Muro — nuevas tipologias ───────────────────────────────────────────────
+
+    def test_hormigon_ciclopeo_genera_muro(self):
+        """HORMIGON CICLOPEO (masa de hormigon) → muro all-inclusive."""
+        res = cubicar_vial(self._vial("MURO HORMIGON CICLOPEO BASE ESTRIBO", 150.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_perno_de_roca_genera_muro(self):
+        res = cubicar_vial(self._vial("PERNO DE ROCA TALUD CORTE KM12", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    # ── Terraplen — nuevas keywords ───────────────────────────────────────────
+
+    def test_cama_de_arena_genera_terraplen(self):
+        """CAMA DE ARENA TUBERIA → terraplen (material de apoyo compactado)."""
+        res = cubicar_vial(self._vial("CAMA DE ARENA TUBERIA DRENAJE", 320.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+
+    def test_grava_nivelacion_genera_terraplen_granular(self):
+        res = cubicar_vial(self._vial("GRAVA DE NIVELACION SUBBASE", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+
+    # ── Planos reales — keywords edge cases ───────────────────────────────────
+
+    def test_pavimento_flexible_genera_calzada(self):
+        """PAVIMENTO FLEXIBLE (sin especificar carpeta) → calzada completa."""
+        res = cubicar_vial(self._vial("PAVIMENTO FLEXIBLE KM 5+200", 2000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" in partidas
+
+    def test_muro_generico_genera_muro(self):
+        """MURO HORMIGON ARMADO (sin calificador especifico) → muro all-inclusive."""
+        res = cubicar_vial(self._vial("MURO DE HORMIGON ARMADO H-30", 400.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_muro_bare_genera_muro(self):
+        """MURO solo (como en M-03 MURO CONT. TIPO A) → muro."""
+        res = cubicar_vial(self._vial("M-03 MURO CONT TIPO A", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_obra_arte_mayor_genera_puente(self):
+        """OBRA DE ARTE MAYOR (terminologia MOP) → puente."""
+        res = cubicar_vial(self._vial("OBRA DE ARTE MAYOR KM14+320", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+        assert "moldaje_tablero" in partidas
+
+    def test_obra_arte_menor_genera_alcantarilla(self):
+        """OBRA DE ARTE MENOR (terminologia MOP) → alcantarilla."""
+        res = cubicar_vial(self._vial("OBRA DE ARTE MENOR KM8+500", 15.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "alcantarilla_marco_hormigon" in partidas
 
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""

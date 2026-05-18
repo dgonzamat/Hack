@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Entrena clasificador ML de recintos: húmedo / seco / exterior / común.
+Entrena clasificador ML de recintos: húmedo / seco / exterior / común / vial.
 
-Dataset sintético ~1800 nombres típicos de construcción chilena.
-Modelo: TF-IDF (char n-grams 2-5) + LogisticRegression.
-Salida: clasificador_recintos.pkl (<200 KB)
+Dataset sintético ~1100 nombres típicos de construcción chilena.
+Modelo: TF-IDF char+word FeatureUnion + LogisticRegression (C=5).
+Salida: clasificador_recintos.pkl
 
 Uso:
     python train_clasificador.py           # entrena + guarda pkl
     python train_clasificador.py --eval    # métricas CV sin guardar
+    python train_clasificador.py --tune    # GridSearchCV (lento)
 """
 
 import argparse
@@ -18,9 +19,9 @@ from pathlib import Path
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
-from sklearn.model_selection import StratifiedKFold, cross_val_score
-from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_predict, cross_val_score
+from sklearn.pipeline import FeatureUnion, Pipeline
 
 PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
 
@@ -149,6 +150,54 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "ESTACIONAMIENTO", "ESTACIONAMIENTO VISITAS",
          "CUARTO INSTALACIONES", "SALA TECNICA", "SALA MÁQUINAS",
          "CUARTO ELECTRICO", "SALA ELECTRICA"], "comun")
+
+    # Lobby / accesos de edificio
+    add(["LOBBY", "LOBBY PRINCIPAL", "LOBBY ACCESO", "LOBBY DE ACCESO",
+         "VESTIBULO ASCENSORES", "HALL INTERMEDIO", "HALL PISO",
+         "ANTESALA", "SALA DE ESPERA", "SALA VIP",
+         "FOYER PRINCIPAL", "HALL LLEGADAS",
+         "RECEPCION EDIFICIO", "RECEPCION PRINCIPAL"], "comun")
+
+    # Circulación vertical y núcleos (calificadores de edificio explícitos)
+    add(["CIRCULACION VERTICAL", "NUCLEO VERTICAL", "CAJA VERTICAL",
+         "RAMPA VEHICULAR EDIFICIO", "RAMPA ACCESO EDIFICIO",
+         "PASILLO TECNICO EDIFICIO", "CORREDOR TECNICO EDIFICIO",
+         "CAJA ESCALERA SERVICIO", "ESCALERA INTERIOR SERVICIO",
+         "SALA EVACUACION EDIFICIO", "ZONA EVACUACION EDIFICIO"], "comun")
+
+    # Salas técnicas de edificio — siempre calificadas con EDIFICIO
+    add(["SALA DE MAQUINAS EDIFICIO", "SALA MAQUINAS EDIFICIO",
+         "CUARTO ELECTRICO EDIFICIO", "SALA ELECTRICA EDIFICIO",
+         "SALA TABLEROS EDIFICIO", "CUARTO TABLEROS EDIFICIO",
+         "SALA BOMBAS EDIFICIO", "CUARTO BOMBAS EDIFICIO",
+         "SALA INCENDIO EDIFICIO", "CUARTO INCENDIO EDIFICIO", "SALA SPRINKLERS",
+         "CUARTO DE MEDIDORES", "SALA DE MEDIDORES", "CUARTO MEDIDORES",
+         "SALA GRUPO ELECTROGENO", "CUARTO GENERADOR EDIFICIO",
+         "CUARTO DE BASURA", "SALA RESIDUOS", "SALA ACOPIO RESIDUOS",
+         "SALA ASEO EDIFICIO", "CUARTO ASEO EDIFICIO", "DEPOSITO ASEO",
+         "SALA CISTERNA", "CUARTO CISTERNA EDIFICIO"], "comun")
+
+    # Áreas comunes residenciales
+    add(["TERRAZA COMUN", "TERRAZA COMUNITARIA", "ROOF GARDEN", "ROOFTOP",
+         "PATIO COMUN", "PATIO COMUNITARIO", "JARDIN COMUN",
+         "AREA PARRILLA COMUN", "QUINCHO COMUN", "ASADOR COMUN",
+         "AREA SOCIAL COMUN", "SALON SOCIAL", "SALA EVENTOS EDIFICIO",
+         "SALA COWORKING", "SALA ESTUDIO COMUN", "SALA TRABAJO COMUN",
+         "SALA JUEGOS COMUN", "SALA INFANTIL COMUN", "AREA INFANTIL",
+         "SALA FITNESS", "GYM COMUN", "AREA EJERCICIO COMUN",
+         "SALA SPA", "SAUNA COMUN", "SALA YOGA COMUN",
+         "LAVANDERIA COMUN", "AREA LAVADO COMUN", "CUARTO LAVADO COMUN",
+         "BODEGA COMUN PISO", "DEPOSITO COMUN",
+         "BICICLETERO", "ESTACIONAMIENTO BICICLETAS", "CUARTO BICICLETAS"], "comun")
+
+    # Administración y guardias
+    add(["PORTERIA EDIFICIO", "GUARDIA", "CASETA GUARDIA", "SALA GUARDIA",
+         "OFICINA ADMINISTRACION", "SALA ADMINISTRACION", "GERENCIA EDIFICIO",
+         "SALON DE DIRECTORIO", "SALA DE DIRECTORIO EDIFICIO"], "comun")
+
+    # Baño / servicios comunes (no de depto)
+    add(["BANO COMUN", "BANO VISITAS EDIFICIO", "SSHH COMUN", "SSHH PISO",
+         "SERVICIO HIGIENICO COMUN", "CAMBIADOR COMUN"], "comun")
 
     # ── VIAL (infraestructura civil urbana chilena) ───────────────────────────
     # Fuentes: SERVIU Metropolitano, MOP Vialidad, Manual Metro Santiago
@@ -320,17 +369,64 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "BASE TRATADA CON CEMENTO",
          "SUB-BASE GRANULAR", "SUBRASANTE", "SUBRASANTE MEJORADA",
          "MATERIAL SELECCIONADO", "RELLENO ESTRUCTURAL",
-         "RIEGO DE IMPRIMACION", "RIEGO DE LIGA",
-         "SELLO ASFALTICO", "MICROPAVIMENTO",
-         "TRATAMIENTO SUPERFICIAL BICAPA",
+         "RIEGO DE IMPRIMACION", "RIEGO DE LIGA", "RIEGO DE ADHERENCIA",
+         "IMPRIMACION ASFALTICA", "CAPA IMPRIMACION",
+         "SELLO ASFALTICO", "SELLO DE GRIETAS", "MICROPAVIMENTO",
+         "LECHADA ASFALTICA", "TRATAMIENTO SUPERFICIAL BICAPA",
+         "PAVIMENTO FLEXIBLE", "PAVIMENTO GRANULAR",
          "LOSA DE HORMIGON CALZADA", "BARRAS PASAJUNTAS",
-         "JUNTA DE CONTRACCION VIAL", "JUNTA DE EXPANSION VIAL"], "vial")
+         "JUNTA DE CONTRACCION VIAL", "JUNTA DE EXPANSION VIAL",
+         "AFIRMADO GRANULAR", "CAMINO RIPIO", "RIPIO COMPACTADO",
+         "ESPALDON", "BERMA GRANULAR", "CAMINO LATERAL"], "vial")
+
+    # Conservacion vial y mantenimiento
+    add(["RECARPETEO", "BACHEO", "PARCHADO",
+         "SELLO DE FISURAS", "SELLO DE GRIETAS",
+         "MICROPAVIMENTO", "LECHADA ASFALTICA",
+         "CONSERVACION PERIODICA", "MANTENIMIENTO VIAL",
+         "REPOSICION CARPETA", "FRESADO ASFALTICO"], "vial")
 
     # Vereda / baldosas SERVIU
     add(["BALDOSA PODO-TACTIL", "BALDOSA DE ALERTA", "BALDOSA DE GUIA",
          "LOSETA PODO-TACTIL", "RAMPA PEATONAL",
          "RAMPA PARA DISCAPACITADOS", "REBAJE DE SOLERA", "PISO TACTIL",
-         "HORMIGON POBRE VEREDA", "CAMA DE ARENA", "CAMA DE RIPIO"], "vial")
+         "HORMIGON POBRE VEREDA", "CAMA DE ARENA", "CAMA DE RIPIO",
+         "CICLOVIA", "CICLOBANDA", "CICLOPISTA", "VIA CICLISTA",
+         "SENDA CICLISTA", "SENDA PEATONAL"], "vial")
+
+    # Drenaje subterraneo y subdrenaje
+    add(["SUBDREN TRANSVERSAL", "SUBDREN LONGITUDINAL",
+         "DRENE LONGITUDINAL", "DREN SUBTERRANEO",
+         "TUBERIA HDPE", "TUBERIA CORRUGADA",
+         "CONTRACUNETA", "CUNETA DE PIE", "CUNETA CORONAMIENTO",
+         "BAJADA DE AGUA", "CANAL DE CORONACION",
+         "ZANJA DRENANTE", "GEODREN PLANO", "CAMA DE ARENA TUBERIA"], "vial")
+
+    # Señaletica de conservacion
+    add(["BALIZAS", "BALIZA RETROREFLECTANTE", "HITO KILOMETRICO",
+         "DELINEADOR VIAL", "OJO DE GATO", "TACHAS RETROREFLECTANTES",
+         "LINEAS CONTINUAS", "LINEAS DISCONTINUAS", "MARCAS VIALES",
+         "LINEAS DE EJE", "DEMARCACION HORIZONTAL",
+         "IMBORNAL", "REJILLA CAPTACION", "SUMIDERO DE CALZADA"], "vial")
+
+    # Salas tecnicas en infraestructura (metro, tuneles, vial) — no son recintos habitables
+    add(["SALA SER", "SALA SER METRO", "SALA SER ESTACION",
+         "SALA ELECTRICA", "SALA ELECTRICA METRO", "SALA ELECTRICA TUNEL",
+         "SALA DE CONTROL TUNEL", "SALA DE CONTROL METRO", "SALA DE BOMBAS TUNEL",
+         "SALA DE VENTILACION", "SALA DE EMERGENCIA TUNEL",
+         "SALA DE MAQUINAS METRO", "SALA DE EQUIPOS METRO",
+         "SALA TECNICA METRO", "SALA TECNICA TUNEL", "SALA TECNICA VIAL",
+         "LOCAL TECNICO METRO",
+         "SALA CCI", "SALA CCI METRO", "CCI METRO",
+         "SALA DE TELECOMUNICACIONES METRO", "SALA TELECOMUNICACIONES VIAL",
+         "SALA DE VENTILADORES", "SALA VENTILADORES TUNEL",
+         "PASAJE VEHICULAR", "PASO VEHICULAR TUNEL",
+         "DREN SUBTERRANEO", "SISTEMA DRENAJE SUBTERRANEO",
+         "AREA DE SERVICIO VIAL", "AREA SERVICIO CARRETERA",
+         "FAJA VERDE VIAL", "FAJA VERDE CENTRAL", "FAJA VERDE LATERAL",
+         "TRAMO SUBTERRANEO VIAL", "TRAMO SUBTERRANEO METRO",
+         "SALA TECNICA ESTACION", "SALA OPERACIONES METRO",
+         "SALA DE CONTROL VIAL", "CENTRO DE CONTROL TRAFICO"], "vial")
 
     # Señalización / apoyo vial
     add(["ÁREA DE SERVICIO", "AREA DE SERVICIO",
@@ -349,7 +445,8 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "ACCESO METRO PONIENTE", "ACCESO METRO ORIENTE",
          "GALERIA DE ACCESO METRO", "POZO DE ACCESO METRO",
          "PIQUE DE VENTILACION METRO", "CAMARA DE VENTILACION METRO",
-         "SALA SER", "SALA SER METRO", "SALA SER ESTACION",
+         "SALA SER", "SALA SER METRO", "SALA SER ESTACION", "SER ESTACION",
+         "SALA SER PONIENTE", "SALA SER ORIENTE", "SALA ELECTRICA METRO",
          "SER METRO", "SUBESTACION RECTIFICADORA", "SUBESTACION DE RECTIFICACION",
          "SALA CCI", "SALA CCI METRO", "CCI METRO",
          "SALA DE TELECOMUNICACIONES METRO",
@@ -371,15 +468,23 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
 def construir_modelo() -> Pipeline:
     return Pipeline([
-        ("tfidf", TfidfVectorizer(
-            analyzer="char_wb",
-            ngram_range=(2, 5),
-            lowercase=False,
-            sublinear_tf=True,
-        )),
+        ("feat", FeatureUnion([
+            ("char", TfidfVectorizer(
+                analyzer="char_wb",
+                ngram_range=(2, 5),
+                lowercase=False,
+                sublinear_tf=True,
+            )),
+            ("word", TfidfVectorizer(
+                analyzer="word",
+                ngram_range=(1, 2),
+                lowercase=False,
+                sublinear_tf=True,
+            )),
+        ])),
         ("clf", LogisticRegression(
-            max_iter=1000,
-            C=1.0,
+            max_iter=2000,
+            C=5.0,
             class_weight="balanced",
             solver="lbfgs",
         )),
@@ -389,27 +494,53 @@ def construir_modelo() -> Pipeline:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval", action="store_true", help="Solo métricas CV, no guarda pkl")
+    parser.add_argument("--tune", action="store_true", help="GridSearchCV de hiperparámetros (lento)")
     args = parser.parse_args()
 
     datos = _generar_dataset()
     X = [nombre for nombre, _ in datos]
     y = [cat for _, cat in datos]
 
+    clases = ["comun", "exterior", "humedo", "seco", "vial"]
+
     print(f"Dataset: {len(datos)} ejemplos")
-    for cat in ("humedo", "seco", "exterior", "comun", "vial"):
+    for cat in clases:
         n = y.count(cat)
         print(f"  {cat:<10} {n:>4} ({n/len(y)*100:.0f}%)")
 
-    modelo = construir_modelo()
-
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    if args.tune:
+        from sklearn.model_selection import GridSearchCV
+        param_grid = {
+            "clf__C": [0.5, 1.0, 5.0, 10.0],
+            "feat__char__ngram_range": [(2, 4), (2, 5), (2, 6)],
+        }
+        modelo = construir_modelo()
+        gs = GridSearchCV(modelo, param_grid, cv=cv, scoring="accuracy", n_jobs=-1, verbose=1)
+        gs.fit(X, y)
+        print(f"\nMejores parámetros: {gs.best_params_}")
+        print(f"Mejor CV accuracy:  {gs.best_score_:.4f}")
+        return
+
+    modelo = construir_modelo()
     scores = cross_val_score(modelo, X, y, cv=cv, scoring="accuracy")
     print(f"\nCV accuracy: {scores.mean():.4f} ± {scores.std():.4f}")
+
+    y_cv = cross_val_predict(modelo, X, y, cv=cv)
+    print("\nConfusion matrix (CV):")
+    cm = confusion_matrix(y, y_cv, labels=clases)
+    print(f"{'':>10}  " + "  ".join(f"{c[:5]:>6}" for c in clases))
+    for i, c in enumerate(clases):
+        row = "  ".join(f"{cm[i,j]:>6}" for j in range(len(clases)))
+        err = cm[i].sum() - cm[i, i]
+        pct = err / cm[i].sum() * 100
+        print(f"{c:>10}  {row}   err={err}/{cm[i].sum()} ({pct:.0f}%)")
 
     modelo.fit(X, y)
     y_pred = modelo.predict(X)
     print("\nClasificación sobre dataset completo:")
-    print(classification_report(y, y_pred, target_names=["comun", "exterior", "humedo", "seco", "vial"]))
+    print(classification_report(y, y_pred, target_names=clases))
 
     if not args.eval:
         with open(PKL_PATH, "wb") as f:
@@ -417,7 +548,6 @@ def main() -> None:
         kb = PKL_PATH.stat().st_size // 1024
         print(f"Modelo guardado: {PKL_PATH}  ({kb} KB)")
 
-    # Validar edge cases críticos
     _validar_edge_cases(modelo)
 
 

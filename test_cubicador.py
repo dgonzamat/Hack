@@ -849,6 +849,14 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "cuneta_hormigon_revestida" in partidas
 
+    def test_recarpeteo_solo_carpeta_sin_excavacion(self):
+        # Conservacion: solo carpeta asfaltica, sin base ni excavacion
+        res = cubicar_vial(self._vial("RECARPETEO ASFALTICO KM5", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" not in partidas, "recarpeteo no repone base existente"
+        assert "excavacion_tierra_comun" not in partidas, "recarpeteo no excava"
+
     def test_afirmado_granular_sin_carpeta(self):
         # Camino ripio: base + sub_base + excavacion, SIN carpeta asfaltica
         res = cubicar_vial(self._vial("AFIRMADO GRANULAR CAMINO RURAL", 1000.0))

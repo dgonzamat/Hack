@@ -374,26 +374,30 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
         if cat == "calzada":
             pav = sec["pavimento_flexible"]
             cap = pav["carpeta_asfaltica_m"]
-            base = pav["base_granular_m"]
-            sub = pav["sub_base_granular_m"]
-            sub_ras = pav.get("subrasante_m", 0.0)
+            n_norm = _norm(nombre)
+            # Conservacion: solo carpeta (no excavar ni reponer base existente)
+            es_conservacion = bool(re.search(r"\b(RECARPETEO|BACHEO|RIEGO DE LIGA|CONSERVACION)\b", n_norm))
             _acum(acc, "carpeta_asfaltica_e60mm", "m2", area,
                   f"Carpeta asfaltica e={int(cap*1000)}mm", nombre,
                   f"area directa; e={cap*1000:.0f} mm")
-            _acum(acc, "base_granular_e200mm", "m2", area,
-                  f"Base granular e={int(base*1000)}mm", nombre,
-                  f"area directa; e={base*1000:.0f} mm")
-            _acum(acc, "sub_base_granular_e200mm", "m2", area,
-                  f"Sub-base granular e={int(sub*1000)}mm", nombre,
-                  f"area directa; e={sub*1000:.0f} mm")
-            if sub_ras > 0:
-                _acum(acc, "subrasante_estabilizada", "m2", area,
-                      f"Subrasante estabilizada e={int(sub_ras*1000)}mm", nombre,
-                      f"area directa; e={sub_ras*1000:.0f} mm")
-            total_excav = cap + base + sub + sub_ras
-            _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav,
-                  "Excavacion tierra comun", nombre,
-                  f"area × {total_excav:.2f} m (paquete estructural)")
+            if not es_conservacion:
+                base = pav["base_granular_m"]
+                sub = pav["sub_base_granular_m"]
+                sub_ras = pav.get("subrasante_m", 0.0)
+                _acum(acc, "base_granular_e200mm", "m2", area,
+                      f"Base granular e={int(base*1000)}mm", nombre,
+                      f"area directa; e={base*1000:.0f} mm")
+                _acum(acc, "sub_base_granular_e200mm", "m2", area,
+                      f"Sub-base granular e={int(sub*1000)}mm", nombre,
+                      f"area directa; e={sub*1000:.0f} mm")
+                if sub_ras > 0:
+                    _acum(acc, "subrasante_estabilizada", "m2", area,
+                          f"Subrasante estabilizada e={int(sub_ras*1000)}mm", nombre,
+                          f"area directa; e={sub_ras*1000:.0f} mm")
+                total_excav = cap + base + sub + sub_ras
+                _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav,
+                      "Excavacion tierra comun", nombre,
+                      f"area × {total_excav:.2f} m (paquete estructural)")
 
         elif cat == "calzada_granular":
             gr = sec["calzada_granular"]

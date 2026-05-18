@@ -893,6 +893,116 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "pavimento_adoquin_hormigon" in partidas
 
+    # ── Ciclovia (fix: incluye base granular) ────────────────────────────────
+
+    def test_ciclovia_genera_pavimento_y_base(self):
+        """CICLOVIA → ciclovia_pavimento m² + base_granular m² (e=150mm)."""
+        res = cubicar_vial(self._vial("CICLOVIA SEGREGADA", 560.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "ciclovia_pavimento" in partidas
+        assert "base_granular_e200mm" in partidas
+        assert partidas["ciclovia_pavimento"]["cantidad"] == pytest.approx(560.0)
+        assert partidas["base_granular_e200mm"]["cantidad"] == pytest.approx(560.0)
+
+    def test_ciclopista_genera_ciclovia(self):
+        res = cubicar_vial(self._vial("CICLOPISTA KM3", 400.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "ciclovia_pavimento" in partidas
+        assert "base_granular_e200mm" in partidas
+
+    def test_via_ciclista_genera_ciclovia(self):
+        res = cubicar_vial(self._vial("VIA CICLISTA NORTE", 300.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "ciclovia_pavimento" in partidas
+
+    def test_ciclovia_base_granular_override(self):
+        """ciclovia.base_granular_m override via secciones."""
+        sec = {"ciclovia": {"base_granular_m": 0.10}}
+        res = cubicar_vial(self._vial("CICLOVIA SEGREGADA", 1000.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        assert "base_granular_e200mm" in partidas
+        assert partidas["base_granular_e200mm"]["cantidad"] == pytest.approx(1000.0)
+
+    # ── Calzada rigida (fix: incluye excavacion) ──────────────────────────────
+
+    def test_calzada_rigida_genera_tres_partidas(self):
+        """PAVIMENTO RIGIDO → pavimento_hormigon_rigido + sub_base + excavacion."""
+        res = cubicar_vial(self._vial("PAVIMENTO RIGIDO H30", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pavimento_hormigon_rigido" in partidas
+        assert "sub_base_granular_e200mm" in partidas
+        assert "excavacion_tierra_comun" in partidas
+
+    def test_calzada_rigida_excavacion_volumen(self):
+        """Excavacion = area × (losa + sub_base) = 1000 × (0.22+0.15) = 370 m³."""
+        res = cubicar_vial(self._vial("PAVIMENTO RIGIDO H30", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert partidas["excavacion_tierra_comun"]["cantidad"] == pytest.approx(370.0, abs=1.0)
+
+    def test_calzada_hormigon_genera_rigida(self):
+        res = cubicar_vial(self._vial("CALZADA HORMIGON KM6", 800.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pavimento_hormigon_rigido" in partidas
+
+    # ── Nuevas keywords calzada_granular ─────────────────────────────────────
+
+    def test_espaldon_genera_calzada_granular(self):
+        """ESPALDON (berma no pavimentada) → calzada_granular sin carpeta asfaltica."""
+        res = cubicar_vial(self._vial("ESPALDON GRANULAR", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "base_granular_e200mm" in partidas
+        assert "sub_base_granular_e200mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas
+
+    def test_camino_lateral_genera_calzada_granular(self):
+        res = cubicar_vial(self._vial("CAMINO LATERAL DE SERVICIO", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "base_granular_e200mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas
+
+    # ── Nuevas keywords colector ──────────────────────────────────────────────
+
+    def test_tuberia_hdpe_genera_colector(self):
+        """TUBERIA HDPE → colector (no hormigon keyword → PVC)."""
+        res = cubicar_vial(self._vial("TUBERIA HDPE DRENAJE PLUVIAL", 160.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+
+    def test_tuberia_corrugada_genera_colector(self):
+        res = cubicar_vial(self._vial("TUBERIA CORRUGADA DRENAJE KM4", 80.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+        assert partidas["colector_pvc_300mm"]["unidad"] == "ml"
+
+    def test_subcolector_genera_colector(self):
+        res = cubicar_vial(self._vial("SUBCOLECTOR PVC 200MM", 40.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "colector_pvc_300mm" in partidas
+
+    # ── Nuevas keywords muro ──────────────────────────────────────────────────
+
+    def test_enrocado_genera_muro(self):
+        """ENROCADO → muro_contencion_hormigon (all-inclusive, precio escollera)."""
+        res = cubicar_vial(self._vial("ENROCADO TALUD RIO", 800.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+        assert partidas["muro_contencion_hormigon"]["cantidad"] == pytest.approx(800.0)
+
+    def test_enrocamiento_genera_muro(self):
+        res = cubicar_vial(self._vial("ENROCAMIENTO RIBERA CANAL", 400.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_muro_gavion_genera_muro(self):
+        res = cubicar_vial(self._vial("MURO GAVION METALICO", 300.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_muro_tierra_armada_genera_muro(self):
+        res = cubicar_vial(self._vial("MURO TIERRA ARMADA KM12", 1500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

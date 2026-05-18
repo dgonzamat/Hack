@@ -28,9 +28,10 @@ _VIALES = re.compile(
     r"TERRAPLEN|CORTE|ESCARPE|DESMONTE|ALCANTARILLA|CANAL|ACEQUIA|DEMARCACION|"
     r"SENALETIVA|SENALIZACION|ILUMINACION|LUMINARIA|GUARDAVIA|DEFENSA CAMINERA|"
     r"REVEGETACION|PASARELA|ADOQUIN|EMPEDRADO|BARRERA|POZO|MEJORAMIENTO|SUBRASANTE|"
-    r"COLECTOR|TUBERIA|ALCANTARILLADO|DREN|PASO SUPERIOR|PASO BAJO NIVEL|"
+    r"COLECTOR|TUBERIA|CAÑERIA|ALCANTARILLADO|DREN|PASO SUPERIOR|PASO BAJO NIVEL|"
     r"ENSANCHE|SOBREANCHO|RELLENO|EXCAVACION|MEDIANA|TROCHA|ASFALTADO|"
-    r"RAMPA|ANDEN|VADO|GEOTEXTIL|GEOMALLA|AFIRMADO)\b"
+    r"RAMPA|ANDEN|VADO|GEOTEXTIL|GEOMALLA|AFIRMADO|CICLOVIA|CICLOBANDA|"
+    r"ESPALDON|ENROCADO|ESCOLLERA|ESCARPE)\b"
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
@@ -235,6 +236,9 @@ _DEFAULT_SECCIONES: dict = {
     "colector": {
         "ancho_zanja_m": 0.80,    # ancho zanja excavacion (ml = area / ancho_zanja)
     },
+    "ciclovia": {
+        "base_granular_m": 0.15,  # e=150mm base granular bajo ciclovia (menor que calzada)
+    },
 }
 
 # Elementos que contienen palabras de categorías viales pero NO son obras de infraestructura
@@ -256,19 +260,20 @@ _VIAL_CATS = [
     (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|RELLENO ESTRUCTURAL|RELLENO ZANJA|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
     (re.compile(r"\b(CORTE EN ROCA|CORTE EN TIERRA|EXCAVACION EN CORTE|EXCAVACION MASIVA|EXCAVACION GENERAL|DESMONTE|BANCO DE PRESTAMO|TRINCHERA)\b"), "corte"),
     (re.compile(r"\b(ESCARPE|LIMPIEZA DE TERRENO|ROCE LIMPIEZA|DESCAPOTE|DESBOSQUE)\b"), "escarpe"),
+    (re.compile(r"\b(ENROCADO|ENROCAMIENTO|MURO GAVION|MURO DE PIEDRA|MURO TIERRA ARMADA|TALUD REVESTIDO|ESCOLLERA)\b"), "muro"),
     (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
     (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA)\b"), "canal"),
-    (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|DREN FRANCES|DREN LONGITUDINAL|RED DRENAJE|ALCANTARILLADO)\b"), "colector"),
-    # ── Estructuras de pavimento
-    (re.compile(r"\b(AFIRMADO GRANULAR|PAVIMENTO GRANULAR|CAMINO RIPIO|RIPIO COMPACTADO|GRAVA COMPACTADA|CAMINO GRANULAR|CAMINO DE SERVICIO|CAMINO VECINAL)\b"), "calzada_granular"),
+    (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|TUBERIA HDPE|TUBERIA CORRUGADA|CAÑERIA DRENAJE|DREN FRANCES|DREN LONGITUDINAL|RED DRENAJE|ALCANTARILLADO|SUBCOLECTOR)\b"), "colector"),
+    # ── Estructuras de pavimento (específicas ANTES que la genérica calzada)
+    (re.compile(r"\b(AFIRMADO GRANULAR|PAVIMENTO GRANULAR|CAMINO RIPIO|RIPIO COMPACTADO|GRAVA COMPACTADA|CAMINO GRANULAR|CAMINO DE SERVICIO|CAMINO VECINAL|ESPALDON|BERMA GRANULAR|ZONA DE SEGURIDAD VIAL|CAMINO LATERAL|CAMINO INTERIOR)\b"), "calzada_granular"),
+    (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA|CALZADA HORMIGON|HORMIGON CALZADA)\b"), "calzada_rigida"),
     (re.compile(r"\b(CALZADA|BERMA|ENSANCHE|SOBREANCHO|DESVIO PROVISIONAL|PLATAFORMA VIAL|CAMINO DE ACCESO|VIA DE SERVICIO|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA|ASFALTADO|TROCHA|PATIO DE MANIOBRAS|RAMPA VEHICULAR|RAMPA ACCESO|ACCESO VEHICULAR|PAVIMENTO ASFALTICO|PAVIMENTO BITUMINOSO|CONCRETO ASFALTICO|RECARPETEO|BACHEO|CARPETA ASFALTICA|MEZCLA ASFALTICA)\b"), "calzada"),
     (re.compile(r"\bPISTA\b"), "calzada"),
-    (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
     (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO|MEDIANA PAVIMENTADA|MEDIANA ADOQUIN)\b"), "adoquin"),
     (re.compile(r"\b(VEREDA|ACERA|BANQUETA|ANDEN|PLATAFORMA PEATONAL|VADO PEATONAL)\b"), "vereda"),
-    (re.compile(r"\b(CICLOVIA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
+    (re.compile(r"\b(CICLOVIA|CICLOBANDA|CICLOACERA|CICLOPISTA|VIA CICLISTA|SENDA CICLISTA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
     (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA|BADEN)\b"), "cuneta"),
-    (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD|ESCOLLERA)\b"), "muro"),
+    (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD)\b"), "muro"),
     # ── Túneles (orden importa: tunel_metro y galeria antes de tunel)
     (re.compile(r"\b(TUNEL METRO|TUBO METRO|TUNEL TBM|TUNEL FERROVIARIO|TUNEL CIRCULAR)\b"), "tunel_metro"),
     (re.compile(r"\b(GALERIA|BOVEDA|HASTIAL)\b"), "galeria"),
@@ -329,10 +334,10 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
 
     Categorias y formulas (29 activas):
     - calzada flexible    → carpeta + base + sub-base + subrasante (m²) + excav (m³)
-    - calzada_rigida      → pavimento hormigon + sub-base (m²)
+    - calzada_rigida      → pavimento hormigon + sub-base (m²) + excav (m³)
     - calzada_granular    → base + sub-base (m²) + excav (m³); sin carpeta asfaltica
     - vereda / anden      → acera hormigon + base (m²)
-    - ciclovia            → ciclovia_pavimento m²
+    - ciclovia            → ciclovia_pavimento m² + base_granular m²
     - cuneta              → ml = area / ancho_cuneta
     - tunel (rect.)       → excavacion m³; revestimiento m²; acero kg
     - galeria             → igual que tunel con seccion galeria
@@ -424,6 +429,10 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "sub_base_granular_e200mm", "m2", area,
                   f"Sub-base granular e={int(sub_m*1000)}mm", nombre,
                   f"area directa; e={sub_m*1000:.0f} mm")
+            total_excav_r = losa_m + sub_m
+            _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav_r,
+                  "Excavacion tierra comun pavimento rigido", nombre,
+                  f"area × {total_excav_r:.2f} m (losa + sub-base)")
 
         elif cat == "vereda":
             esp_v = sec["vereda"]["espesor_hormigon_m"]
@@ -434,8 +443,12 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                   "Base granular vereda", nombre, "area directa")
 
         elif cat == "ciclovia":
+            base_cic = sec["ciclovia"]["base_granular_m"]
             _acum(acc, "ciclovia_pavimento", "m2", area,
                   "Ciclovia pavimento", nombre, "area directa")
+            _acum(acc, "base_granular_e200mm", "m2", area,
+                  f"Base granular e={int(base_cic*1000)}mm ciclovia", nombre,
+                  f"area directa; e={base_cic*1000:.0f} mm")
 
         elif cat == "cuneta":
             ancho = sec["cuneta"]["ancho_m"]

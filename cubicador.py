@@ -21,6 +21,9 @@ _EXTERIORES = re.compile(r"\b(TERRAZA|BALCON|PATIO|JARDIN)\b")
 _COMUNES = re.compile(
     r"\b(HALL|PASILLO|CORREDOR|ESCALERA|ASCENSOR|DUCTO|SHAFT|RECEP|CIRCULACION)\b"
 )
+_VIALES = re.compile(
+    r"\b(CALZADA|PISTA|VEREDA|TUNEL|TUNEL|PORTAL|CUNETA|PUENTE|ROTONDA|VIADUCTO|BERMA|CARRIL)\b"
+)
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
 _CONFIANZA_ML_MIN = 0.40
@@ -71,6 +74,8 @@ def clasificar_recinto(nombre: str) -> tuple[str, bool]:
         return "exterior", False
     if _COMUNES.search(n):
         return "comun", False
+    if _VIALES.search(n):
+        return "vial", False
     if _SECOS.search(n):
         return "seco", False
     return "seco", True
@@ -209,6 +214,7 @@ def cubicar(
     area_incierta = 0.0
     recintos_sin_area = []
     comunes_omitidos = []
+    viales_detectados = []  # infraestructura civil — no entra a cubicación residencial
 
     # Area total de vanos (asumimos uniforme entre recintos para descuento)
     area_vanos, vanos_detalle = area_vanos_total(vanos)
@@ -244,6 +250,11 @@ def cubicar(
             area_confiable += area
         else:
             area_incierta += area
+
+        # Infraestructura civil: no entra a cubicacion residencial
+        if cat == "vial":
+            viales_detectados.append({"nombre": nombre, "area_m2": area})
+            continue
 
         # Areas comunes y exteriores no entran a cubicacion default
         if cat == "comun" and not incluir_comunes:
@@ -365,6 +376,7 @@ def cubicar(
         "vanos_detalle": vanos_detalle,
         "recintos_sin_area": recintos_sin_area,
         "comunes_omitidos": comunes_omitidos,
+        "viales_detectados": viales_detectados,
         "resumen_areas": {
             "confiable_m2": round(area_confiable, 1),
             "incierta_m2": round(area_incierta, 1),

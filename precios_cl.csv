@@ -12,3 +12,14 @@ tabique_volcanita_doble_cara,m2,32000,ONDAC 2026Q1,2026-04
 puerta_simple_90cm_instalada,un,180000,ONDAC 2026Q1,2026-04
 puerta_doble_150cm_instalada,un,340000,ONDAC 2026Q1,2026-04
 ventana_corredera_aluminio,m2,95000,ONDAC 2026Q1,2026-04
+# Partidas infraestructura vial — verificar con DGA/MOP antes de uso
+pavimento_asfaltico_2capas,m2,35000,ONDAC 2026Q1,2026-04
+pavimento_hormigon_rigido,m2,52000,ONDAC 2026Q1,2026-04
+acera_hormigon_e10cm,m2,18000,ONDAC 2026Q1,2026-04
+ciclovia_pavimento,m2,22000,ONDAC 2026Q1,2026-04
+cuneta_hormigon_revestida,ml,45000,ONDAC 2026Q1,2026-04
+hormigon_estructural_H30,m3,280000,ONDAC 2026Q1,2026-04
+hormigon_armado_H30,m3,380000,ONDAC 2026Q1,2026-04
+excavacion_tunel_roca,m3,85000,ONDAC 2026Q1,2026-04
+revestimiento_tunel_hormigon,m2,120000,ONDAC 2026Q1,2026-04
+muro_contencion_hormigon,m2,95000,ONDAC 2026Q1,2026-04

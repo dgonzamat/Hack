@@ -199,6 +199,8 @@ _DEFAULT_SECCIONES: dict = {
         "espesor_tablero_m": 0.55,
         "kg_acero_por_m3_tablero": 120,
         "estribo_factor": 0.0,      # vol_estribo = vol_tablero × factor (0.35 tipico MOP)
+        "luz_vano_m": 20.0,         # luz libre tipica viga T pretensada (MOP Vol.5 Cap.8.3.2)
+        "neoprenos_por_vano": 4,    # 2 apoyos/extremo x 2 extremos = 4 apoyos/vano
     },
     "muro_contencion": {
         "espesor_m": 0.40,
@@ -298,11 +300,11 @@ _VIAL_CATS = [
     (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA|BADEN)\b"), "cuneta"),
     (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|MURO HORMIGON|MURO ARMADO|MURO CONT\b|TALUD)\b"), "muro"),
     (re.compile(r"\bMURO\b"), "muro"),
-    # ── Túneles (orden importa: tunel_metro y galeria antes de tunel)
+    # ── Túneles (orden importa: especificos antes de generico TUNEL)
     (re.compile(r"\b(TUNEL METRO|TUBO METRO|TUNEL TBM|TUNEL FERROVIARIO|TUNEL CIRCULAR)\b"), "tunel_metro"),
     (re.compile(r"\b(GALERIA|BOVEDA|HASTIAL)\b"), "galeria"),
-    (re.compile(r"\b(TUNEL|PORTAL)\b"), "tunel"),
     (re.compile(r"\b(REVESTIMIENTO TUNEL|SHOTCRETE|HORMIGON PROYECTADO|CONTRABOVEDA)\b"), "revestimiento_tunel"),
+    (re.compile(r"\b(TUNEL|PORTAL)\b"), "tunel"),
     # ── Estructuras tipo puente
     (re.compile(r"\b(PASARELA|PASO SUPERIOR PEATONAL|PASO A DESNIVEL PEAT)\b"), "pasarela"),
     (re.compile(r"\b(PUENTE|VIADUCTO|TABLERO|ESTRIBO|LOSA DE PUENTE|LOSA DE APROXIMACION|PASO SUPERIOR VEHICULAR|PASO BAJO NIVEL|PASO DESNIVEL VIAL|OBRA DE ARTE MAYOR)\b"), "puente"),
@@ -547,8 +549,20 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                       "requerida en todos los tuneles metro")
 
         elif cat == "revestimiento_tunel":
-            _acum(acc, "revestimiento_tunel_hormigon", "m2", area,
-                  "Revestimiento tunel hormigon", nombre, "area directa")
+            # SHOTCRETE/HORMIGON PROYECTADO = soporte primario NATM ($95k/m²)
+            # REVESTIMIENTO TUNEL sin calificador = HF definitivo ($120k/m²)
+            n_norm = _norm(nombre)
+            es_shotcrete = bool(re.search(
+                r"\b(SHOTCRETE|HORMIGON PROYECTADO|HF PROYECTADO|SPRITZ BETON|CONTRABOVEDA SHOTCRETE)\b",
+                n_norm,
+            ))
+            if es_shotcrete:
+                _acum(acc, "shotcrete_e150mm", "m2", area,
+                      "Shotcrete e=150mm hormigon proyectado (soporte primario NATM)", nombre,
+                      "area directa — revestimiento primario pre-hormigon definitivo")
+            else:
+                _acum(acc, "revestimiento_tunel_hormigon", "m2", area,
+                      "Revestimiento tunel hormigon definitivo H-30", nombre, "area directa")
 
         elif cat == "via_ferrea":
             # EFE Norma Via 2019 / Metro Santiago — UIC60 sobre traviesas bibloque
@@ -575,6 +589,7 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             esp = s["espesor_tablero_m"]
             kg_ac = s["kg_acero_por_m3_tablero"]
             estr_factor = s.get("estribo_factor", 0.0)
+            ancho_tab = s["ancho_tablero_m"]
             v_tab = area * esp
             _acum(acc, "hormigon_armado_H30", "m3", v_tab,
                   f"Hormigon armado H30 tablero e={int(esp*100)}cm", nombre,
@@ -593,6 +608,18 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                 _acum(acc, "acero_refuerzo_a630", "kg", v_estr * kg_ac,
                       "Acero refuerzo A630-42H estribos", nombre,
                       f"{kg_ac} kg/m³ estribos")
+            # Apoyos neopreno + juntas de dilatacion — MOP Vol.5 Cap.8.5/8.6
+            luz_vano = s.get("luz_vano_m", 20.0)
+            neoprenos_por_vano = int(s.get("neoprenos_por_vano", 4))
+            if luz_vano > 0 and ancho_tab > 0:
+                longitud_puente = area / ancho_tab
+                n_vanos = max(1, round(longitud_puente / luz_vano))
+                _acum(acc, "neopreno_apoyo_puente", "un", n_vanos * neoprenos_por_vano,
+                      "Apoyo neopreno confinado (MOP Cap.8.5)", nombre,
+                      f"{n_vanos} vanos x {neoprenos_por_vano} apoyos/vano; luz={luz_vano:.0f}m")
+                _acum(acc, "junta_dilatacion_puente", "ml", (n_vanos + 1) * ancho_tab,
+                      "Junta dilatacion modular (MOP Cap.8.6)", nombre,
+                      f"({n_vanos}+1) jtas x {ancho_tab:.1f}m ancho tablero")
 
         elif cat == "muro":
             s = sec["muro_contencion"]

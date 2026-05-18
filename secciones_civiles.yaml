@@ -43,6 +43,8 @@ puente:
   espesor_tablero_m: 0.20       # espesor losa in situ (vigas T pretensadas llevan su propio vol)
   kg_acero_por_m3_tablero: 120  # cuantía acero losa + conexiones (MOP Cap.8.4.3)
   estribo_factor: 0.0           # vol_estribo = vol_tablero × factor (0.35 tipico — activar en proyecto)
+  luz_vano_m: 20.00             # luz libre típica viga T pretensada (MOP Vol.5 Cap.8.3.2)
+  neoprenos_por_vano: 4         # 2 apoyos/extremo × 2 extremos = 4 apoyos/vano (MOP Cap.8.5)
 
 # ── MUROS DE CONTENCION ────────────────────────────────────────────────────────
 # Ref: Manual de Carreteras MOP Vol.3 Cap.3.800 — Muros de Contención

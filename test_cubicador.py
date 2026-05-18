@@ -1172,6 +1172,40 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "terraplen_compactado" in partidas
 
+    # ── Planos reales — keywords edge cases ───────────────────────────────────
+
+    def test_pavimento_flexible_genera_calzada(self):
+        """PAVIMENTO FLEXIBLE (sin especificar carpeta) → calzada completa."""
+        res = cubicar_vial(self._vial("PAVIMENTO FLEXIBLE KM 5+200", 2000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" in partidas
+
+    def test_muro_generico_genera_muro(self):
+        """MURO HORMIGON ARMADO (sin calificador especifico) → muro all-inclusive."""
+        res = cubicar_vial(self._vial("MURO DE HORMIGON ARMADO H-30", 400.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_muro_bare_genera_muro(self):
+        """MURO solo (como en M-03 MURO CONT. TIPO A) → muro."""
+        res = cubicar_vial(self._vial("M-03 MURO CONT TIPO A", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_obra_arte_mayor_genera_puente(self):
+        """OBRA DE ARTE MAYOR (terminologia MOP) → puente."""
+        res = cubicar_vial(self._vial("OBRA DE ARTE MAYOR KM14+320", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+        assert "moldaje_tablero" in partidas
+
+    def test_obra_arte_menor_genera_alcantarilla(self):
+        """OBRA DE ARTE MENOR (terminologia MOP) → alcantarilla."""
+        res = cubicar_vial(self._vial("OBRA DE ARTE MENOR KM8+500", 15.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "alcantarilla_marco_hormigon" in partidas
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

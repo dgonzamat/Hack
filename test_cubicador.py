@@ -759,6 +759,57 @@ class TestCubicarVial:
         # tablero=275 + estribos=275×0.35=96.25 → total=371.25 m³
         assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(371.25, abs=1.0)
 
+    # ── Puente: neopreno + junta (MOP Vol.5 Cap.8.5/8.6) ────────────────────
+
+    def test_puente_genera_neopreno_y_junta(self):
+        """Puente → neopreno_apoyo_puente (un) + junta_dilatacion_puente (ml)."""
+        # area=500 m², ancho_tablero=10.0m (default), luz_vano=20.0m
+        # longitud = 500/10.0 = 50m; n_vanos = round(50/20) = round(2.5) = 2 (banker)
+        # neopreno = 2×4 = 8 un; junta = (2+1)×10.0 = 30.0 ml
+        res = cubicar_vial(self._vial("PUENTE VEHICULAR", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "neopreno_apoyo_puente" in partidas
+        assert "junta_dilatacion_puente" in partidas
+        assert partidas["neopreno_apoyo_puente"]["unidad"] == "un"
+        assert partidas["junta_dilatacion_puente"]["unidad"] == "ml"
+        assert partidas["neopreno_apoyo_puente"]["cantidad"] == pytest.approx(8, abs=1)
+        assert partidas["junta_dilatacion_puente"]["cantidad"] == pytest.approx(30.0, abs=1.0)
+
+    def test_puente_neopreno_minimo_1_vano(self):
+        """Puente pequeño (<1 luz de vano) → n_vanos=1 minimo."""
+        # area=60 m², ancho=10.0m → longitud=6m < 20m luz → n_vanos=max(1,round(0.3))=1
+        res = cubicar_vial(self._vial("PUENTE MENOR", 60.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "neopreno_apoyo_puente" in partidas
+        assert partidas["neopreno_apoyo_puente"]["cantidad"] == pytest.approx(4, abs=1)
+        # junta = (1+1)×10.0 = 20.0 ml
+        assert partidas["junta_dilatacion_puente"]["cantidad"] == pytest.approx(20.0, abs=1.0)
+
+    # ── Revestimiento tunel: shotcrete vs HF definitivo ───────────────────────
+
+    def test_shotcrete_genera_partida_shotcrete(self):
+        """SHOTCRETE → shotcrete_e150mm (soporte primario), no revestimiento in situ."""
+        res = cubicar_vial(self._vial("SHOTCRETE E=150MM SOPORTE PRIMARIO NATM", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "shotcrete_e150mm" in partidas
+        assert "revestimiento_tunel_hormigon" not in partidas
+        assert partidas["shotcrete_e150mm"]["cantidad"] == pytest.approx(200.0, abs=0.1)
+
+    def test_hormigon_proyectado_genera_shotcrete(self):
+        """HORMIGON PROYECTADO → shotcrete_e150mm (sinonimo de shotcrete)."""
+        res = cubicar_vial(self._vial("HORMIGON PROYECTADO CONTRABOVEDA", 150.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "shotcrete_e150mm" in partidas
+        assert "revestimiento_tunel_hormigon" not in partidas
+
+    def test_revestimiento_definitivo_genera_hormigon_revestimiento(self):
+        """REVESTIMIENTO TUNEL (sin SHOTCRETE) → revestimiento_tunel_hormigon definitivo."""
+        res = cubicar_vial(self._vial("REVESTIMIENTO TUNEL DEFINITIVO HF30", 180.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "revestimiento_tunel_hormigon" in partidas
+        assert "shotcrete_e150mm" not in partidas
+        assert partidas["revestimiento_tunel_hormigon"]["cantidad"] == pytest.approx(180.0, abs=0.1)
+
     # ── Barrera NJ ────────────────────────────────────────────────────────────
 
     def test_barrera_nj_genera_ml(self):

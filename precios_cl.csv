@@ -58,3 +58,14 @@ geotextil_drenaje,m2,4500,ONDAC 2026Q1,2026-04
 # Partidas civiles — conservacion vial
 micropavimento_e25mm,m2,4000,ONDAC 2026Q1,2026-04
 sello_grietas_asfaltico,m2,1500,ONDAC 2026Q1,2026-04
+# Partidas metro y tuneles — EIA L7 Metro Santiago 2020 / Norma ITA
+dovelas_prefabricadas,m2,220000,ONDAC 2026Q1,2026-04
+impermeabilizacion_tunel,m2,45000,ONDAC 2026Q1,2026-04
+shotcrete_e150mm,m2,95000,ONDAC 2026Q1,2026-04
+# Partidas via ferrea — EFE Norma Via 2019 / Metro Santiago UIC60
+via_ferrea_monovia,ml,380000,ONDAC 2026Q1,2026-04
+balasto_granular,m3,45000,ONDAC 2026Q1,2026-04
+traviesa_hormigon,un,85000,ONDAC 2026Q1,2026-04
+# Partidas puentes — Manual de Carreteras MOP Vol.5
+neopreno_apoyo_puente,un,180000,ONDAC 2026Q1,2026-04
+junta_dilatacion_puente,ml,380000,ONDAC 2026Q1,2026-04

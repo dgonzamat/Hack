@@ -183,9 +183,16 @@ _DEFAULT_SECCIONES: dict = {
         "kg_acero_por_m3_revest": 70,
     },
     "tunel_metro": {
-        "diametro_excav_m": 6.0,
+        "diametro_excav_m": 6.10,   # TBM L6/L7 Metro Santiago (EIA L7 2020)
         "espesor_dovelas_m": 0.30,
-        "kg_acero_por_m3_dovela": 100,
+        "kg_acero_por_m3_dovela": 110,
+        "impermeabilizacion": True,  # membrana HDPE requerida (Norma ITA/Metro S.A.)
+    },
+    "via_ferrea": {
+        "ancho_via_m": 1.44,          # trocha UIC + sobre-anchos (EFE Norma Via 2019)
+        "espesor_balasto_m": 0.350,   # balasto limpio 35cm (EFE/Metro S.A.)
+        "ancho_balasto_m": 1.00,      # ancho balasto por via
+        "espaciado_traviesas_m": 0.600,  # separacion traviesas bibloque (EFE 2019)
     },
     "puente": {
         "ancho_tablero_m": 10.0,
@@ -209,7 +216,7 @@ _DEFAULT_SECCIONES: dict = {
         "losa_hormigon_m": 0.22,
         "sub_base_m": 0.15,
     },
-    "cuneta": {"ancho_m": 0.40},
+    "cuneta": {"ancho_m": 0.80},
     "vereda": {"espesor_hormigon_m": 0.10},
     "corte": {
         "profundidad_media_m": 3.00,  # profundidad media de corte en roca/tierra
@@ -278,6 +285,8 @@ _VIAL_CATS = [
     (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
     (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA|BAJADA DE AGUA|CONTRACUNETA|CUNETA DE PIE|CANAL DE CORONACION|DISIPADOR ENERGIA)\b"), "canal"),
     (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|TUBERIA HDPE|TUBERIA CORRUGADA|CAÑERIA DRENAJE|DREN FRANCES|DREN LONGITUDINAL|DRENE LONGITUDINAL|SUBDREN TRANSVERSAL|RED DRENAJE|ALCANTARILLADO|SUBCOLECTOR)\b"), "colector"),
+    # ── Vía férrea (antes que calzada genérica)
+    (re.compile(r"\b(VIA FERREA|VIA FERRREA|TROCHA|BALASTRO|BALASTO|TRAVIESA|RIELES|RIEL|VIA EN PLACA|LOSA FERROVIARIA|CARRIL CONDUCTOR|TERCER RIEL)\b"), "via_ferrea"),
     # ── Estructuras de pavimento (específicas ANTES que la genérica calzada)
     (re.compile(r"\b(AFIRMADO GRANULAR|PAVIMENTO GRANULAR|CAMINO RIPIO|RIPIO COMPACTADO|GRAVA COMPACTADA|CAMINO GRANULAR|CAMINO DE SERVICIO|CAMINO VECINAL|ESPALDON|BERMA GRANULAR|ZONA DE SEGURIDAD VIAL|CAMINO LATERAL|CAMINO INTERIOR)\b"), "calzada_granular"),
     (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA|CALZADA HORMIGON|HORMIGON CALZADA)\b"), "calzada_rigida"),
@@ -511,11 +520,12 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
                   f"{kg_ac} kg/m³ revestimiento {tipo_label}")
 
         elif cat == "tunel_metro":
+            # TBM sección circular — EIA L7 Metro Santiago 2020
             s = sec["tunel_metro"]
             diam = s["diametro_excav_m"]
             esp_dov = s["espesor_dovelas_m"]
             kg_ac = s["kg_acero_por_m3_dovela"]
-            # Seccion circular TBM: area_sec = π×(d/2)²; longitud = area_planta / d
+            impermeab = s.get("impermeabilizacion", True)
             area_sec = math.pi * (diam / 2) ** 2
             longitud = area / diam
             v_excav = longitud * area_sec
@@ -523,18 +533,42 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             area_rev = longitud * perim_sec
             v_dov = area_rev * esp_dov
             _acum(acc, "excavacion_tunel_roca", "m3", v_excav,
-                  f"Excavacion tunel metro D={diam:.1f} m", nombre,
-                  f"seccion circular D={diam:.1f} m — ajustar en secciones_civiles.yaml")
-            _acum(acc, "revestimiento_tunel_hormigon", "m2", area_rev,
-                  f"Dovelas hormigon e={int(esp_dov*100)}cm", nombre,
-                  f"perim sec {perim_sec:.2f} m × longitud {longitud:.0f} m")
+                  f"Excavacion TBM D={diam:.2f}m (Metro Santiago)", nombre,
+                  f"seccion circular D={diam:.2f}m — ajustar en secciones_civiles.yaml")
+            _acum(acc, "dovelas_prefabricadas", "m2", area_rev,
+                  f"Dovelas prefabricadas H-50 e={int(esp_dov*100)}cm (EIA L7)", nombre,
+                  f"perim={perim_sec:.2f}m × l={longitud:.0f}m — reemplaza HF in situ")
             _acum(acc, "acero_refuerzo_a630", "kg", v_dov * kg_ac,
-                  "Acero refuerzo A630-42H dovelas", nombre,
-                  f"{kg_ac} kg/m³ dovelas")
+                  "Acero A630-42H dovelas prefabricadas", nombre,
+                  f"{kg_ac} kg/m³ dovelas (EIA L7 rango 100-120)")
+            if impermeab:
+                _acum(acc, "impermeabilizacion_tunel", "m2", area_rev,
+                      "Membrana impermeabilizacion HDPE (Norma ITA/Metro S.A.)", nombre,
+                      "requerida en todos los tuneles metro")
 
         elif cat == "revestimiento_tunel":
             _acum(acc, "revestimiento_tunel_hormigon", "m2", area,
                   "Revestimiento tunel hormigon", nombre, "area directa")
+
+        elif cat == "via_ferrea":
+            # EFE Norma Via 2019 / Metro Santiago — UIC60 sobre traviesas bibloque
+            s_vf = sec.get("via_ferrea", _DEFAULT_SECCIONES["via_ferrea"])
+            ancho_via = s_vf["ancho_via_m"]
+            esp_bal = s_vf["espesor_balasto_m"]
+            ancho_bal = s_vf["ancho_balasto_m"]
+            esp_tv = s_vf["espaciado_traviesas_m"]
+            longitud = area / ancho_via
+            _acum(acc, "via_ferrea_monovia", "ml", longitud,
+                  "Via ferrea UIC60 instalada (EFE Norma Via 2019)", nombre,
+                  f"longitud={longitud:.0f}ml (area/{ancho_via:.2f}m)")
+            _acum(acc, "balasto_granular", "m3", longitud * esp_bal * ancho_bal,
+                  f"Balasto limpio e={int(esp_bal*100)}cm", nombre,
+                  f"l={longitud:.0f}ml × {esp_bal:.3f}m × {ancho_bal:.2f}m")
+            _acum(acc, "traviesa_hormigon", "un", longitud / esp_tv,
+                  f"Traviesa bibloque hormigon c/{int(esp_tv*100)}cm (EFE)", nombre,
+                  f"l={longitud:.0f}ml / {esp_tv:.2f}m separacion")
+            _acum(acc, "sub_base_granular_e200mm", "m2", area,
+                  "Subbalasto granular (cama bajo balasto)", nombre, "area directa")
 
         elif cat == "puente":
             s = sec["puente"]

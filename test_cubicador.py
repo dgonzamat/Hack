@@ -800,6 +800,36 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "hormigon_armado_H30" in partidas
 
+    def test_losa_aproximacion_genera_puente(self):
+        res = cubicar_vial(self._vial("LOSA DE APROXIMACION PUENTE KM8", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+
+    def test_ensanche_genera_calzada(self):
+        res = cubicar_vial(self._vial("ENSANCHE CALZADA KM3", 800.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+
+    def test_excavacion_masiva_genera_corte(self):
+        res = cubicar_vial(self._vial("EXCAVACION MASIVA SECTOR A", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_en_corte" in partidas
+
+    def test_relleno_estructural_genera_terraplen(self):
+        res = cubicar_vial(self._vial("RELLENO ESTRUCTURAL ESTRIBO", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+
+    def test_mediana_verde_genera_revegetacion(self):
+        res = cubicar_vial(self._vial("MEDIANA VERDE SEPARADOR CENTRAL", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "revegetacion_hidrosiembra" in partidas
+
+    def test_mediana_pavimentada_genera_adoquin(self):
+        res = cubicar_vial(self._vial("MEDIANA PAVIMENTADA ADOQUIN", 400.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pavimento_adoquin_hormigon" in partidas
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

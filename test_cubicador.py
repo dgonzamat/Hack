@@ -594,6 +594,111 @@ class TestCubicarVial:
         assert partidas["revegetacion_hidrosiembra"]["unidad"] == "m2"
         assert partidas["revegetacion_hidrosiembra"]["cantidad"] == pytest.approx(200.0)
 
+    # ── Subrasante en calzada (nueva capa) ────────────────────────────────────
+
+    def test_calzada_incluye_subrasante_por_defecto(self):
+        """Default subrasante_m=0.15 genera partida subrasante_estabilizada."""
+        res = cubicar_vial(self._vial("CALZADA", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "subrasante_estabilizada" in partidas
+        assert partidas["subrasante_estabilizada"]["unidad"] == "m2"
+        assert partidas["subrasante_estabilizada"]["cantidad"] == pytest.approx(1000.0)
+
+    def test_calzada_excav_incluye_subrasante(self):
+        """Excavacion = area × (cap+base+sub+subrasante) = 1000 × 0.61 = 610 m³."""
+        res = cubicar_vial(self._vial("CALZADA", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        # 0.06+0.20+0.20+0.15 = 0.61 m
+        assert partidas["excavacion_tierra_comun"]["cantidad"] == pytest.approx(610.0, abs=1.0)
+
+    def test_calzada_sin_subrasante_cuando_cero(self):
+        """subrasante_m=0.0 omite la partida y no suma a excavacion."""
+        sec = {"pavimento_flexible": {"subrasante_m": 0.0}}
+        res = cubicar_vial(self._vial("CALZADA", 1000.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        assert "subrasante_estabilizada" not in partidas
+        # excavacion = 1000 × 0.46 = 460
+        assert partidas["excavacion_tierra_comun"]["cantidad"] == pytest.approx(460.0, abs=1.0)
+
+    # ── Corte y escarpe ───────────────────────────────────────────────────────
+
+    def test_corte_genera_m3(self):
+        """CORTE EN ROCA → m³ = area × profundidad_media (default 3.0m)."""
+        res = cubicar_vial(self._vial("CORTE EN ROCA", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_en_corte" in partidas
+        assert partidas["excavacion_en_corte"]["unidad"] == "m3"
+        assert partidas["excavacion_en_corte"]["cantidad"] == pytest.approx(1500.0, abs=0.1)
+
+    def test_corte_profundidad_custom(self):
+        sec = {"corte": {"profundidad_media_m": 5.0}}
+        res = cubicar_vial(self._vial("EXCAVACION EN CORTE", 200.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        assert partidas["excavacion_en_corte"]["cantidad"] == pytest.approx(1000.0, abs=0.1)
+
+    def test_escarpe_genera_m2(self):
+        res = cubicar_vial(self._vial("ESCARPE LIMPIEZA DE TERRENO", 800.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "escarpe_y_limpieza" in partidas
+        assert partidas["escarpe_y_limpieza"]["unidad"] == "m2"
+        assert partidas["escarpe_y_limpieza"]["cantidad"] == pytest.approx(800.0)
+
+    # ── Canal revestido ───────────────────────────────────────────────────────
+
+    def test_canal_genera_ml(self):
+        """CANAL → ml = area / ancho_canal (default 2.0m)."""
+        res = cubicar_vial(self._vial("CANAL REVESTIDO", 100.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "canal_hormigon_revestido" in partidas
+        assert partidas["canal_hormigon_revestido"]["unidad"] == "ml"
+        assert partidas["canal_hormigon_revestido"]["cantidad"] == pytest.approx(50.0, abs=0.1)
+
+    # ── Pasarela peatonal ─────────────────────────────────────────────────────
+
+    def test_pasarela_genera_tres_partidas(self):
+        """PASARELA → hormigon m³ + acero kg + moldaje m²."""
+        # area=120 m², espesor default=0.25m → V=30 m³
+        res = cubicar_vial(self._vial("PASARELA PEATONAL", 120.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "hormigon_armado_H30" in partidas
+        assert "acero_refuerzo_a630" in partidas
+        assert "moldaje_tablero" in partidas
+        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(30.0, abs=0.5)
+
+    # ── Adoquín ───────────────────────────────────────────────────────────────
+
+    def test_adoquin_genera_m2(self):
+        res = cubicar_vial(self._vial("ADOQUIN HORMIGON", 300.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pavimento_adoquin_hormigon" in partidas
+        assert partidas["pavimento_adoquin_hormigon"]["cantidad"] == pytest.approx(300.0)
+
+    # ── Rotonda (alias calzada) ───────────────────────────────────────────────
+
+    def test_rotonda_genera_capas_pavimento(self):
+        """ROTONDA se clasifica como calzada y genera mismas capas."""
+        res = cubicar_vial(self._vial("ROTONDA KM5", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert partidas["carpeta_asfaltica_e60mm"]["cantidad"] == pytest.approx(600.0)
+
+    # ── Zapata muro (opcional) ────────────────────────────────────────────────
+
+    def test_muro_sin_zapata_por_defecto(self):
+        """zapata_factor=0 por defecto: no agrega volumen extra al hormigon."""
+        res = cubicar_vial(self._vial("MURO DE CONTENCION", 100.0))
+        partidas = {p["partida"]: p for p in res}
+        # solo vol_muro = 100 × 0.40 = 40 m³
+        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(40.0, abs=0.5)
+
+    def test_muro_con_zapata(self):
+        """zapata_factor=0.30 agrega 30% extra al hormigon."""
+        sec = {"muro_contencion": {"espesor_m": 0.40, "kg_acero_por_m3": 80, "zapata_factor": 0.30}}
+        res = cubicar_vial(self._vial("MURO DE CONTENCION", 100.0), secciones=sec)
+        partidas = {p["partida"]: p for p in res}
+        # muro: 100×0.40=40 m³; zapata: 40×0.30=12 m³; total=52 m³
+        assert partidas["hormigon_armado_H30"]["cantidad"] == pytest.approx(52.0, abs=0.5)
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

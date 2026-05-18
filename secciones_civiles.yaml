@@ -39,12 +39,14 @@ puente:
 muro_contencion:
   espesor_m: 0.40              # espesor muro en voladizo
   kg_acero_por_m3: 80
+  zapata_factor: 0.0           # vol_zapata = vol_muro × factor (0.30 para voladizo tipico)
 
 # ── PAVIMENTO FLEXIBLE (asfalto) ───────────────────────────────────────────────
 pavimento_flexible:
   carpeta_asfaltica_m: 0.06    # e=60mm carpeta en caliente
   base_granular_m: 0.20        # e=200mm base granular compactada
   sub_base_granular_m: 0.20    # e=200mm sub-base granular
+  subrasante_m: 0.15           # e=150mm subrasante compactada/estabilizada (MOP estandar)
 
 # ── PAVIMENTO RIGIDO (hormigon) ────────────────────────────────────────────────
 pavimento_rigido:
@@ -65,6 +67,20 @@ terraplen:
 # ── DRENAJE TRANSVERSAL ───────────────────────────────────────────────────────
 alcantarilla:
   ancho_interno_m: 1.50        # ancho interno alcantarilla/cajón hormigón (m)
+
+
+# ── CORTE Y DESMONTE ──────────────────────────────────────────────────────────
+corte:
+  profundidad_media_m: 3.00    # profundidad media de corte en banco/desmonte
+
+# ── CANAL REVESTIDO ───────────────────────────────────────────────────────────
+canal:
+  ancho_m: 2.00                # ancho interno canal hormigon revestido (m)
+
+# ── PASARELA PEATONAL ─────────────────────────────────────────────────────────
+pasarela:
+  espesor_tablero_m: 0.25      # tablero liviano pasarela peatonal
+  kg_acero_por_m3_tablero: 80
 
 # ── SEÑALÉTICA VERTICAL ───────────────────────────────────────────────────────
 senaletiva:

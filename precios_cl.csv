@@ -37,7 +37,11 @@ colector_pvc_300mm,ml,85000,ONDAC 2026Q1,2026-04
 colector_hormigon_600mm,ml,120000,ONDAC 2026Q1,2026-04
 # Partidas civiles — movimiento de tierras y drenaje transversal
 terraplen_compactado,m3,6000,ONDAC 2026Q1,2026-04
+excavacion_en_corte,m3,18000,ONDAC 2026Q1,2026-04
+escarpe_y_limpieza,m2,2500,ONDAC 2026Q1,2026-04
 alcantarilla_marco_hormigon,ml,450000,ONDAC 2026Q1,2026-04
+canal_hormigon_revestido,ml,180000,ONDAC 2026Q1,2026-04
+subrasante_estabilizada,m2,4500,ONDAC 2026Q1,2026-04
 # Partidas civiles — senaletiva y equipamiento vial
 demarcacion_vial_termoplastico,m2,8000,ONDAC 2026Q1,2026-04
 senal_vial_retrorreflectante,un,180000,ONDAC 2026Q1,2026-04
@@ -45,3 +49,5 @@ luminaria_led_vial,un,480000,ONDAC 2026Q1,2026-04
 guardavia_flexible_w,ml,32000,ONDAC 2026Q1,2026-04
 # Partidas civiles — obras verdes
 revegetacion_hidrosiembra,m2,3500,ONDAC 2026Q1,2026-04
+# Partidas civiles — estructuras adicionales
+pavimento_adoquin_hormigon,m2,45000,ONDAC 2026Q1,2026-04

@@ -12,3 +12,7 @@ openpyxl>=3.1
 scikit-learn>=1.4
 pyyaml>=6.0
 pytest>=8.0
+
+# scraper_precios.py — ejecutar solo en maquina local (red cloud bloqueada)
+playwright>=1.44
+curl_cffi>=0.7

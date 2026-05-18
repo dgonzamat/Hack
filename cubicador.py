@@ -30,7 +30,7 @@ _VIALES = re.compile(
     r"REVEGETACION|PASARELA|ADOQUIN|EMPEDRADO|BARRERA|POZO|MEJORAMIENTO|SUBRASANTE|"
     r"COLECTOR|TUBERIA|ALCANTARILLADO|DREN|PASO SUPERIOR|PASO BAJO NIVEL|"
     r"ENSANCHE|SOBREANCHO|RELLENO|EXCAVACION|MEDIANA|TROCHA|ASFALTADO|"
-    r"RAMPA|ANDEN|VADO)\b"
+    r"RAMPA|ANDEN|VADO|GEOTEXTIL|GEOMALLA|AFIRMADO)\b"
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
@@ -327,31 +327,36 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
     secciones: dict cargado desde secciones_civiles.yaml (opcional).
     Si no se provee, usa dimensiones tipicas MOP/Metro (ver _DEFAULT_SECCIONES).
 
-    Formulas aplicadas (todas documentadas en campo 'supuesto'):
-    - Calzada flexible  → carpeta + base + sub-base (m²) + excavacion (m³)
-    - Calzada rigida    → pavimento hormigon + sub-base (m²)
-    - Vereda            → acera hormigon + base (m²)
-    - Cuneta            → ml = area / ancho_cuneta
-    - Tunel (rect.)     → excavacion m³ = area × alto; revestimiento m²; acero kg
-    - Galeria (rect.)   → igual que tunel con seccion de galeria
-    - Tunel metro (TBM) → seccion circular: V = area_planta × area_sec / ancho_planta
-    - Puente            → hormigon m³ = area × espesor; acero kg; moldaje m²
-    - Muro              → hormigon m³; acero kg; moldaje m²
-    - Terraplen         → m³ = area × altura_media
-    - Corte             → m³ = area × profundidad_media
-    - Escarpe           → m² directa
-    - Alcantarilla      → ml = area / ancho_interno
-    - Canal             → ml = area / ancho_canal
-    - Calzada flexible  → +subrasante m² cuando subrasante_m > 0; excav incluye subrasante
-    - Muro              → +zapata hormigon m³ cuando zapata_factor > 0
-    - Pasarela          → hormigon + acero + moldaje (seccion liviana)
-    - Adoquin           → m² directa
-    - Demarcacion       → m² directa (termoplastico)
-    - Senaletiva        → un = area / area_m2_por_senal
-    - Iluminacion       → un = area / m2_por_poste
-    - Defensa vial      → ml = area / ancho_guardavia
-    - Revegetacion      → m² directa (hidrosiembra)
-    - Colector          → ml = area / ancho_zanja; PVC o hormigon por keyword
+    Categorias y formulas (29 activas):
+    - calzada flexible    → carpeta + base + sub-base + subrasante (m²) + excav (m³)
+    - calzada_rigida      → pavimento hormigon + sub-base (m²)
+    - calzada_granular    → base + sub-base (m²) + excav (m³); sin carpeta asfaltica
+    - vereda / anden      → acera hormigon + base (m²)
+    - ciclovia            → ciclovia_pavimento m²
+    - cuneta              → ml = area / ancho_cuneta
+    - tunel (rect.)       → excavacion m³; revestimiento m²; acero kg
+    - galeria             → igual que tunel con seccion galeria
+    - tunel_metro (TBM)   → seccion circular; dovelas m²; acero kg
+    - revestimiento_tunel → shotcrete / hormigon proyectado m²
+    - puente              → hormigon m³; acero kg; moldaje m² (+ estribos opcional)
+    - pasarela            → hormigon m³; acero kg; moldaje m² (seccion liviana)
+    - muro                → muro_contencion_hormigon m² all-inclusive (+ geotextil opcional)
+    - corte               → m³ = area × profundidad_media
+    - escarpe             → escarpe_y_limpieza m²
+    - terraplen           → m³ = area × altura_media
+    - alcantarilla        → ml = area / ancho_interno
+    - canal               → ml = area / ancho_canal
+    - colector            → ml = area / ancho_zanja; PVC o hormigon por keyword
+    - adoquin             → pavimento_adoquin m²
+    - demarcacion         → demarcacion_vial m²
+    - senaletiva          → un = area / m²_por_senal
+    - iluminacion         → un = area / m²_por_poste
+    - defensa_vial        → ml = area / ancho_guardavia
+    - barrera_nj          → ml = area / ancho_barrera
+    - pozo_inspeccion     → un = area / m²_por_pozo
+    - mejoramiento_suelo  → mejoramiento_suelo_cal m²
+    - geotextil           → geotextil_drenaje m²
+    - revegetacion        → revegetacion_hidrosiembra m²
     """
     sec = _merge_sec(secciones)
     acc: dict[str, dict] = {}

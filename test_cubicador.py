@@ -845,6 +845,17 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "revegetacion_hidrosiembra" in partidas
 
+    def test_acentos_tunel_normalizado(self):
+        # "TÚNEL" con acento debe matchear igual que "TUNEL"
+        res = cubicar_vial(self._vial("TÚNEL GALLEGUILLOS", 1620.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_tunel_roca" in partidas
+
+    def test_acentos_cuneta_normalizada(self):
+        res = cubicar_vial(self._vial("CUNETA REVESTIDA HORMIGÓN", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "cuneta_hormigon_revestida" in partidas
+
     def test_mediana_pavimentada_genera_adoquin(self):
         res = cubicar_vial(self._vial("MEDIANA PAVIMENTADA ADOQUIN", 400.0))
         partidas = {p["partida"]: p for p in res}

@@ -9,6 +9,7 @@ import copy
 import math
 import pickle
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -54,8 +55,9 @@ def _cargar_modelo() -> object | None:
 
 
 def _norm(s: str) -> str:
-    """Normaliza nombre: mayusculas, sin guiones/barras, sin espacios extra. Mantiene puntos."""
-    return re.sub(r"\s+", " ", s.upper().replace("-", " ").replace("/", " ")).strip()
+    """Normaliza nombre: mayusculas, sin acentos, sin guiones/barras, sin espacios extra. Mantiene puntos."""
+    sin_acentos = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", " ", sin_acentos.upper().replace("-", " ").replace("/", " ")).strip()
 
 
 def clasificar_recinto(nombre: str) -> tuple[str, bool]:
@@ -237,7 +239,7 @@ _VIAL_SKIP = re.compile(r"\b(MIRADOR|PARADERO|PLAZOLETA|BALCON)\b")
 _VIAL_CATS = [
     # ── Senaletiva y equipamiento vial (antes que CALZADA — pueden incluir la palabra como calificador)
     (re.compile(r"\b(DEMARCACION|LINEAS DE TRAFICO|TACHAS|TACHONES)\b"), "demarcacion"),
-    (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL|SEÑALIZACION|SEÑAL VIAL)\b"), "senaletiva"),
+    (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL)\b"), "senaletiva"),
     (re.compile(r"\b(ILUMINACION|LUMINARIA|ALUMBRADO VIAL|POSTE LUZ)\b"), "iluminacion"),
     (re.compile(r"\b(BARRERA HORMIGON|NEW JERSEY|BARRERA NJ|BARRERA RIGIDA|MURO NEW JERSEY)\b"), "barrera_nj"),
     (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
@@ -257,7 +259,7 @@ _VIAL_CATS = [
     (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
     (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO|MEDIANA PAVIMENTADA|MEDIANA ADOQUIN)\b"), "adoquin"),
     (re.compile(r"\b(VEREDA|ACERA|BANQUETA)\b"), "vereda"),
-    (re.compile(r"\b(CICLOVIA|CICLOVÍA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
+    (re.compile(r"\b(CICLOVIA|CICLOBANDA|CICLOACERA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
     (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA)\b"), "cuneta"),
     (re.compile(r"\b(MURO DE CONTENCION|MURO PANTALLA|MURO BERLINES|MURO DE GAVIONES|TALUD|ESCOLLERA)\b"), "muro"),
     # ── Túneles (orden importa: tunel_metro y galeria antes de tunel)

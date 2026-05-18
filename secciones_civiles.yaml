@@ -50,6 +50,11 @@ pavimento_flexible:
   sub_base_granular_m: 0.20    # e=200mm sub-base granular
   subrasante_m: 0.15           # e=150mm subrasante compactada/estabilizada (MOP estandar)
 
+# ── PAVIMENTO GRANULAR (camino ripio/afirmado) ────────────────────────────────
+pavimento_granular:
+  base_granular_m: 0.20          # e=200mm base granular compactada
+  sub_base_granular_m: 0.20      # e=200mm sub-base granular
+
 # ── PAVIMENTO RIGIDO (hormigon) ────────────────────────────────────────────────
 pavimento_rigido:
   losa_hormigon_m: 0.22        # e=220mm losa H-30

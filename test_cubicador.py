@@ -856,6 +856,26 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "cuneta_hormigon_revestida" in partidas
 
+    def test_afirmado_granular_sin_carpeta(self):
+        # Camino ripio: base + sub_base + excavacion, SIN carpeta asfaltica
+        res = cubicar_vial(self._vial("AFIRMADO GRANULAR CAMINO RURAL", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "base_granular_e200mm" in partidas
+        assert "sub_base_granular_e200mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas, "camino granular no lleva carpeta asfaltica"
+
+    def test_camino_ripio_genera_excavacion(self):
+        # Excavacion = area × (base + sub_base) = 1000 × 0.40 = 400 m³
+        res = cubicar_vial(self._vial("CAMINO RIPIO ACCESO", 1000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_tierra_comun" in partidas
+        assert partidas["excavacion_tierra_comun"]["cantidad"] == pytest.approx(400.0)
+
+    def test_trinchera_genera_corte(self):
+        res = cubicar_vial(self._vial("TRINCHERA COLECTOR KM8", 500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "excavacion_en_corte" in partidas
+
     def test_mediana_pavimentada_genera_adoquin(self):
         res = cubicar_vial(self._vial("MEDIANA PAVIMENTADA ADOQUIN", 400.0))
         partidas = {p["partida"]: p for p in res}

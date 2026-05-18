@@ -228,6 +228,10 @@ _DEFAULT_SECCIONES: dict = {
         "m2_por_pozo": 4.00,      # huella en planta por pozo (2m × 2m tipico)
     },
     "mejoramiento_suelo": {},     # sin parametros: m² directa
+    "calzada_granular": {         # camino ripio/afirmado sin carpeta asfaltica
+        "base_granular_m": 0.20,
+        "sub_base_granular_m": 0.20,
+    },
     "colector": {
         "ancho_zanja_m": 0.80,    # ancho zanja excavacion (ml = area / ancho_zanja)
     },
@@ -245,17 +249,18 @@ _VIAL_CATS = [
     (re.compile(r"\b(BARRERA HORMIGON|NEW JERSEY|BARRERA NJ|BARRERA RIGIDA|MURO NEW JERSEY)\b"), "barrera_nj"),
     (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
     (re.compile(r"\b(POZO DE INSPECCION|CAMARA DE INSPECCION|POZO VISITA|SUMIDERO|POZO AGUAS)\b"), "pozo_inspeccion"),
-    (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO)\b"), "mejoramiento_suelo"),
+    (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO|SUBBASE TRATADA|SUBRASANTE TRATADA)\b"), "mejoramiento_suelo"),
     (re.compile(r"\b(REVEGETACION|HIDROSIEMBRA|COBERTURA VEGETAL|SIEMBRA TALUD|MEDIANA VERDE|MEDIANA CENTRAL|SEPARADOR VEGETAL|SEPARADOR CENTRAL)\b"), "revegetacion"),
     # ── Movimiento de tierras y drenaje (antes que CALZADA)
     (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|RELLENO ESTRUCTURAL|RELLENO ZANJA|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
-    (re.compile(r"\b(CORTE EN ROCA|CORTE EN TIERRA|EXCAVACION EN CORTE|EXCAVACION MASIVA|EXCAVACION GENERAL|DESMONTE|BANCO DE PRESTAMO)\b"), "corte"),
+    (re.compile(r"\b(CORTE EN ROCA|CORTE EN TIERRA|EXCAVACION EN CORTE|EXCAVACION MASIVA|EXCAVACION GENERAL|DESMONTE|BANCO DE PRESTAMO|TRINCHERA)\b"), "corte"),
     (re.compile(r"\b(ESCARPE|LIMPIEZA DE TERRENO|ROCE LIMPIEZA|DESCAPOTE|DESBOSQUE)\b"), "escarpe"),
     (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
     (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA)\b"), "canal"),
     (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|DREN FRANCES|DREN LONGITUDINAL|RED DRENAJE|ALCANTARILLADO)\b"), "colector"),
     # ── Estructuras de pavimento
-    (re.compile(r"\b(CALZADA|BERMA|ENSANCHE|SOBREANCHO|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA|ASFALTADO|TROCHA|RAMPA VEHICULAR|RAMPA ACCESO|ACCESO VEHICULAR)\b"), "calzada"),
+    (re.compile(r"\b(AFIRMADO GRANULAR|PAVIMENTO GRANULAR|CAMINO RIPIO|RIPIO COMPACTADO|GRAVA COMPACTADA|CAMINO GRANULAR)\b"), "calzada_granular"),
+    (re.compile(r"\b(CALZADA|BERMA|ENSANCHE|SOBREANCHO|DESVIO PROVISIONAL|PLATAFORMA VIAL|CAMINO ACCESO|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA|ASFALTADO|TROCHA|RAMPA VEHICULAR|RAMPA ACCESO|ACCESO VEHICULAR)\b"), "calzada"),
     (re.compile(r"\bPISTA\b"), "calzada"),
     (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA)\b"), "calzada_rigida"),
     (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO|MEDIANA PAVIMENTADA|MEDIANA ADOQUIN)\b"), "adoquin"),
@@ -383,6 +388,21 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav,
                   "Excavacion tierra comun", nombre,
                   f"area × {total_excav:.2f} m (paquete estructural)")
+
+        elif cat == "calzada_granular":
+            gr = sec["calzada_granular"]
+            base_g = gr["base_granular_m"]
+            sub_g = gr["sub_base_granular_m"]
+            _acum(acc, "base_granular_e200mm", "m2", area,
+                  f"Base granular e={int(base_g*1000)}mm camino granular", nombre,
+                  f"area directa; e={base_g*1000:.0f} mm")
+            _acum(acc, "sub_base_granular_e200mm", "m2", area,
+                  f"Sub-base granular e={int(sub_g*1000)}mm camino granular", nombre,
+                  f"area directa; e={sub_g*1000:.0f} mm")
+            total_excav_g = base_g + sub_g
+            _acum(acc, "excavacion_tierra_comun", "m3", area * total_excav_g,
+                  "Excavacion tierra comun camino granular", nombre,
+                  f"area × {total_excav_g:.2f} m (base + sub-base)")
 
         elif cat == "calzada_rigida":
             pr = sec["pavimento_rigido"]

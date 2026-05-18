@@ -1003,6 +1003,114 @@ class TestCubicarVial:
         partidas = {p["partida"]: p for p in res}
         assert "muro_contencion_hormigon" in partidas
 
+    # ── Nuevos keywords demarcacion ───────────────────────────────────────────
+
+    def test_lineas_continuas_genera_demarcacion(self):
+        res = cubicar_vial(self._vial("LINEAS CONTINUAS Y DISCONTINUAS", 150.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "demarcacion_vial_termoplastico" in partidas
+
+    def test_marcas_viales_genera_demarcacion(self):
+        res = cubicar_vial(self._vial("MARCAS VIALES CALZADA", 200.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "demarcacion_vial_termoplastico" in partidas
+
+    # ── Nuevos keywords senaletiva ────────────────────────────────────────────
+
+    def test_balizas_generan_senaletiva(self):
+        """BALIZAS → senal_vial_retrorreflectante (contado por unidades)."""
+        res = cubicar_vial(self._vial("BALIZAS RETROREFLECTANTES", 15.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "senal_vial_retrorreflectante" in partidas
+        assert partidas["senal_vial_retrorreflectante"]["unidad"] == "un"
+
+    def test_hito_kilometrico_genera_senaletiva(self):
+        res = cubicar_vial(self._vial("HITO KILOMETRICO KM0 KM21", 30.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "senal_vial_retrorreflectante" in partidas
+
+    def test_delineador_vial_genera_senaletiva(self):
+        res = cubicar_vial(self._vial("DELINEADOR VIAL RETRO", 45.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "senal_vial_retrorreflectante" in partidas
+
+    # ── Nuevos keywords drenaje y estructuras ─────────────────────────────────
+
+    def test_rejilla_captacion_genera_pozo(self):
+        """REJILLA CAPTACION AGUAS LLUVIA → pozo_inspeccion."""
+        res = cubicar_vial(self._vial("REJILLA CAPTACION AGUAS LLUVIA", 20.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pozo_inspeccion_hormigon" in partidas
+
+    def test_imbornal_genera_pozo(self):
+        res = cubicar_vial(self._vial("IMBORNAL CALZADA DN300", 8.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "pozo_inspeccion_hormigon" in partidas
+
+    def test_bajada_de_agua_genera_canal(self):
+        """BAJADA DE AGUA → canal (ml = area / ancho_canal)."""
+        res = cubicar_vial(self._vial("BAJADA DE AGUA TALUD KM5", 40.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "canal_hormigon_revestido" in partidas
+
+    def test_compactacion_subrasante_genera_mejoramiento(self):
+        res = cubicar_vial(self._vial("COMPACTACION SUBRASANTE SECTOR A", 1500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "mejoramiento_suelo_cal" in partidas
+
+    def test_muro_sostenimiento_genera_muro(self):
+        res = cubicar_vial(self._vial("MURO DE SOSTENIMIENTO HORMIGON", 600.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_zampeado_genera_muro(self):
+        """ZAMPEADO HORMIGON (proteccion ribera) → muro all-inclusive."""
+        res = cubicar_vial(self._vial("ZAMPEADO HORMIGON RIBERA", 250.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "muro_contencion_hormigon" in partidas
+
+    def test_relleno_zanjas_genera_terraplen(self):
+        """RELLENO ZANJAS (backfill de colectores) → terraplen compactado."""
+        res = cubicar_vial(self._vial("RELLENO ZANJAS TUBERIAS SELECTO", 300.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "terraplen_compactado" in partidas
+
+    # ── Conservacion ampliada (micropavimento, sello) ─────────────────────────
+
+    def test_micropavimento_partida_propia(self):
+        """MICROPAVIMENTO → micropavimento_e25mm (precio ~$4k/m², no $8.5k carpeta)."""
+        res = cubicar_vial(self._vial("MICROPAVIMENTO E=25MM KM3", 2000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "micropavimento_e25mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas, "no debe cobrar precio carpeta"
+        assert "base_granular_e200mm" not in partidas, "micropavimento no repone base"
+        assert "excavacion_tierra_comun" not in partidas
+
+    def test_sello_grietas_partida_propia(self):
+        """SELLO DE GRIETAS → sello_grietas_asfaltico (precio ~$1.5k/m², no $8.5k)."""
+        res = cubicar_vial(self._vial("SELLO DE GRIETAS CALZADA KM8", 800.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "sello_grietas_asfaltico" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas, "no debe cobrar precio carpeta"
+        assert "excavacion_tierra_comun" not in partidas
+
+    def test_lechada_asfaltica_genera_micropavimento(self):
+        """LECHADA ASFALTICA → micropavimento_e25mm (capa delgada, precio similar)."""
+        res = cubicar_vial(self._vial("LECHADA ASFALTICA TIPO III KM12", 1500.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "micropavimento_e25mm" in partidas
+        assert "carpeta_asfaltica_e60mm" not in partidas
+        assert "base_granular_e200mm" not in partidas
+
+    # ── Calzada — nuevas keywords capas ──────────────────────────────────────
+
+    def test_capa_de_rodadura_genera_calzada(self):
+        """CAPA DE RODADURA → calzada (pavimento flexible completo)."""
+        res = cubicar_vial(self._vial("CAPA DE RODADURA ASFALTICA", 3000.0))
+        partidas = {p["partida"]: p for p in res}
+        assert "carpeta_asfaltica_e60mm" in partidas
+        assert "base_granular_e200mm" in partidas
+
     def test_cubicar_integra_vial_en_partidas(self):
         """cubicar() incluye partidas viales junto a las residenciales."""
         res = dict(RESULTADO_B1)

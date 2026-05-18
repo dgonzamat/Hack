@@ -55,3 +55,6 @@ barrera_hormigon_nj,ml,120000,ONDAC 2026Q1,2026-04
 pozo_inspeccion_hormigon,un,850000,ONDAC 2026Q1,2026-04
 mejoramiento_suelo_cal,m2,8000,ONDAC 2026Q1,2026-04
 geotextil_drenaje,m2,4500,ONDAC 2026Q1,2026-04
+# Partidas civiles — conservacion vial
+micropavimento_e25mm,m2,4000,ONDAC 2026Q1,2026-04
+sello_grietas_asfaltico,m2,1500,ONDAC 2026Q1,2026-04

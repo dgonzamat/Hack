@@ -31,7 +31,8 @@ _VIALES = re.compile(
     r"COLECTOR|TUBERIA|CAÑERIA|ALCANTARILLADO|DREN|PASO SUPERIOR|PASO BAJO NIVEL|"
     r"ENSANCHE|SOBREANCHO|RELLENO|EXCAVACION|MEDIANA|TROCHA|ASFALTADO|"
     r"RAMPA|ANDEN|VADO|GEOTEXTIL|GEOMALLA|AFIRMADO|CICLOVIA|CICLOBANDA|"
-    r"ESPALDON|ENROCADO|ESCOLLERA|ESCARPE)\b"
+    r"ESPALDON|ENROCADO|ESCOLLERA|ZAMPEADO|MICROPAVIMENTO|LECHADA|SELLO DE GRIETAS|"
+    r"BAJADA DE AGUA|BALIZAS|DELINEADOR|HITO KILOMETRICO|IMBORNAL|REJILLA)\b"
 )
 
 # Umbral de probabilidad bajo el cual se marca fue_heuristica=True
@@ -246,30 +247,30 @@ _VIAL_SKIP = re.compile(r"\b(MIRADOR|PARADERO|PLAZOLETA|BALCON)\b")
 
 # Categoría simple de elemento vial → lógica de cubicación
 _VIAL_CATS = [
-    # ── Senaletiva y equipamiento vial (antes que CALZADA — pueden incluir la palabra como calificador)
-    (re.compile(r"\b(DEMARCACION|LINEAS DE TRAFICO|TACHAS|TACHONES)\b"), "demarcacion"),
-    (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL)\b"), "senaletiva"),
+    # ── Señalética y equipamiento vial (antes que CALZADA)
+    (re.compile(r"\b(DEMARCACION|LINEAS DE TRAFICO|LINEAS CONTINUAS|LINEAS DISCONTINUAS|LINEAS DE EJE|MARCAS VIALES|TACHAS|TACHONES)\b"), "demarcacion"),
+    (re.compile(r"\b(SENALETIVA|SENALIZACION|SENAL VIAL|BALIZAS|BALIZA|HITO KILOMETRICO|DELINEADOR VIAL|OJO DE GATO)\b"), "senaletiva"),
     (re.compile(r"\b(ILUMINACION|LUMINARIA|ALUMBRADO VIAL|POSTE LUZ)\b"), "iluminacion"),
     (re.compile(r"\b(BARRERA HORMIGON|NEW JERSEY|BARRERA NJ|BARRERA RIGIDA|MURO NEW JERSEY)\b"), "barrera_nj"),
     (re.compile(r"\b(DEFENSA CAMINERA|GUARDAVIA|BARRERA METALICA|GUARDARAIL|PRETIL)\b"), "defensa_vial"),
-    (re.compile(r"\b(POZO DE INSPECCION|CAMARA DE INSPECCION|POZO VISITA|SUMIDERO|POZO AGUAS)\b"), "pozo_inspeccion"),
-    (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO|SUBBASE TRATADA|SUBRASANTE TRATADA)\b"), "mejoramiento_suelo"),
+    (re.compile(r"\b(POZO DE INSPECCION|CAMARA DE INSPECCION|POZO VISITA|SUMIDERO|IMBORNAL|REJILLA CAPTACION|REJILLA SUMIDERO|POZO AGUAS)\b"), "pozo_inspeccion"),
+    (re.compile(r"\b(MEJORAMIENTO SUBRASANTE|MEJORAMIENTO SUELO|ESTABILIZACION CAL|SUELO CAL|SUELO CEMENTO|SUBBASE TRATADA|SUBRASANTE TRATADA|COMPACTACION SUBRASANTE|PREPARACION SUBRASANTE)\b"), "mejoramiento_suelo"),
     (re.compile(r"\b(GEOTEXTIL|GEOMALLA|GEOCOMPUESTO|GEOCOMPOSITE|GEOSINTETICO)\b"), "geotextil"),
     (re.compile(r"\b(REVEGETACION|HIDROSIEMBRA|COBERTURA VEGETAL|SIEMBRA TALUD|MEDIANA VERDE|MEDIANA CENTRAL|SEPARADOR VEGETAL|SEPARADOR CENTRAL)\b"), "revegetacion"),
     # ── Movimiento de tierras y drenaje (antes que CALZADA)
-    (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|RELLENO ESTRUCTURAL|RELLENO ZANJA|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
+    (re.compile(r"\b(TERRAPLEN|RELLENO COMPACTADO|RELLENO ESTRUCTURAL|RELLENO ZANJAS|RELLENO ZANJA|RELLENO MATERIAL PRESTAMO|EMBANQUE|CORTE Y RELLENO)\b"), "terraplen"),
     (re.compile(r"\b(CORTE EN ROCA|CORTE EN TIERRA|EXCAVACION EN CORTE|EXCAVACION MASIVA|EXCAVACION GENERAL|DESMONTE|BANCO DE PRESTAMO|TRINCHERA)\b"), "corte"),
     (re.compile(r"\b(ESCARPE|LIMPIEZA DE TERRENO|ROCE LIMPIEZA|DESCAPOTE|DESBOSQUE)\b"), "escarpe"),
-    (re.compile(r"\b(ENROCADO|ENROCAMIENTO|MURO GAVION|MURO DE PIEDRA|MURO TIERRA ARMADA|TALUD REVESTIDO|ESCOLLERA)\b"), "muro"),
+    (re.compile(r"\b(ENROCADO|ENROCAMIENTO|MURO GAVION|MURO DE PIEDRA|MURO TIERRA ARMADA|MURO DE SOSTENIMIENTO|TALUD REVESTIDO|ESCOLLERA|ZAMPEADO)\b"), "muro"),
     (re.compile(r"\b(ALCANTARILLA|DRENAJE TRANSVERSAL|CAJON HORMIGON|BÓVEDA PREFAB|BOVEDA PREFAB)\b"), "alcantarilla"),
-    (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA)\b"), "canal"),
+    (re.compile(r"\b(CANAL|ACEQUIA|ZANJA COLECTORA|BAJADA DE AGUA|CANAL DE CORONACION|DISIPADOR ENERGIA)\b"), "canal"),
     (re.compile(r"\b(COLECTOR|TUBERIA DRENAJE|TUBERIA PVC|TUBERIA HDPE|TUBERIA CORRUGADA|CAÑERIA DRENAJE|DREN FRANCES|DREN LONGITUDINAL|RED DRENAJE|ALCANTARILLADO|SUBCOLECTOR)\b"), "colector"),
     # ── Estructuras de pavimento (específicas ANTES que la genérica calzada)
     (re.compile(r"\b(AFIRMADO GRANULAR|PAVIMENTO GRANULAR|CAMINO RIPIO|RIPIO COMPACTADO|GRAVA COMPACTADA|CAMINO GRANULAR|CAMINO DE SERVICIO|CAMINO VECINAL|ESPALDON|BERMA GRANULAR|ZONA DE SEGURIDAD VIAL|CAMINO LATERAL|CAMINO INTERIOR)\b"), "calzada_granular"),
     (re.compile(r"\b(PAVIMENTO HORMIGON|PAVIMENTO RIGIDO|LOSA DE HORMIGON CALZADA|CALZADA HORMIGON|HORMIGON CALZADA)\b"), "calzada_rigida"),
-    (re.compile(r"\b(CALZADA|BERMA|ENSANCHE|SOBREANCHO|DESVIO PROVISIONAL|PLATAFORMA VIAL|CAMINO DE ACCESO|VIA DE SERVICIO|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA|ASFALTADO|TROCHA|PATIO DE MANIOBRAS|RAMPA VEHICULAR|RAMPA ACCESO|ACCESO VEHICULAR|PAVIMENTO ASFALTICO|PAVIMENTO BITUMINOSO|CONCRETO ASFALTICO|RECARPETEO|BACHEO|CARPETA ASFALTICA|MEZCLA ASFALTICA)\b"), "calzada"),
+    (re.compile(r"\b(CALZADA|BERMA|ENSANCHE|SOBREANCHO|DESVIO PROVISIONAL|PLATAFORMA VIAL|CAMINO DE ACCESO|VIA DE SERVICIO|VIA RAPIDA|VIA EXPRESA|VIA TRONCAL|VIA COLECTORA|VIA LOCAL|AUTOPISTA|ROTONDA|GLORIETA|ASFALTADO|TROCHA|PATIO DE MANIOBRAS|RAMPA VEHICULAR|RAMPA ACCESO|ACCESO VEHICULAR|PAVIMENTO ASFALTICO|PAVIMENTO BITUMINOSO|CONCRETO ASFALTICO|RECARPETEO|BACHEO|CARPETA ASFALTICA|MEZCLA ASFALTICA|CAPA DE RODADURA|MICROPAVIMENTO|LECHADA ASFALTICA|SELLO DE GRIETAS|SELLO ASFALTICO)\b"), "calzada"),
     (re.compile(r"\bPISTA\b"), "calzada"),
-    (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO|MEDIANA PAVIMENTADA|MEDIANA ADOQUIN)\b"), "adoquin"),
+    (re.compile(r"\b(ADOQUIN|PAVIMENTO ARTICULADO|EMPEDRADO|EMPEDRADO IRREGULAR|MEDIANA PAVIMENTADA|MEDIANA ADOQUIN)\b"), "adoquin"),
     (re.compile(r"\b(VEREDA|ACERA|BANQUETA|ANDEN|PLATAFORMA PEATONAL|VADO PEATONAL)\b"), "vereda"),
     (re.compile(r"\b(CICLOVIA|CICLOBANDA|CICLOACERA|CICLOPISTA|VIA CICLISTA|SENDA CICLISTA|SENDA PEATONAL|PISTA BICI)\b"), "ciclovia"),
     (re.compile(r"\b(CUNETA|ZANJON|FOSO|SOLERA|BADEN)\b"), "cuneta"),
@@ -333,7 +334,7 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
     Si no se provee, usa dimensiones tipicas MOP/Metro (ver _DEFAULT_SECCIONES).
 
     Categorias y formulas (29 activas):
-    - calzada flexible    → carpeta + base + sub-base + subrasante (m²) + excav (m³)
+    - calzada flexible    → carpeta/micropavimento/sello + base + sub-base + subrasante (m²) + excav (m³)
     - calzada_rigida      → pavimento hormigon + sub-base (m²) + excav (m³)
     - calzada_granular    → base + sub-base (m²) + excav (m³); sin carpeta asfaltica
     - vereda / anden      → acera hormigon + base (m²)
@@ -380,10 +381,25 @@ def cubicar_vial(viales_detectados: list[dict], secciones: Optional[dict] = None
             pav = sec["pavimento_flexible"]
             cap = pav["carpeta_asfaltica_m"]
             n_norm = _norm(nombre)
-            # Conservacion: solo carpeta (no excavar ni reponer base existente)
-            es_conservacion = bool(re.search(r"\b(RECARPETEO|BACHEO|RIEGO DE LIGA|CONSERVACION)\b", n_norm))
-            _acum(acc, "carpeta_asfaltica_e60mm", "m2", area,
-                  f"Carpeta asfaltica e={int(cap*1000)}mm", nombre,
+            # Tratamientos superficiales de conservacion: partida y precio diferenciado
+            _RE_MICROPAV = re.compile(r"\b(MICROPAVIMENTO|LECHADA ASFALTICA)\b")
+            _RE_SELLO = re.compile(r"\b(SELLO DE GRIETAS|SELLO ASFALTICO)\b")
+            if _RE_SELLO.search(n_norm):
+                partida_sup = "sello_grietas_asfaltico"
+                desc_sup = "Sello de grietas asfaltico"
+            elif _RE_MICROPAV.search(n_norm):
+                partida_sup = "micropavimento_e25mm"
+                desc_sup = "Micropavimento e=25mm"
+            else:
+                partida_sup = "carpeta_asfaltica_e60mm"
+                desc_sup = f"Carpeta asfaltica e={int(cap*1000)}mm"
+            # Conservacion: solo superficie (no excavar ni reponer base existente)
+            es_conservacion = bool(re.search(
+                r"\b(RECARPETEO|BACHEO|RIEGO DE LIGA|CONSERVACION|MICROPAVIMENTO|LECHADA ASFALTICA|SELLO DE GRIETAS|SELLO ASFALTICO)\b",
+                n_norm,
+            ))
+            _acum(acc, partida_sup, "m2", area,
+                  desc_sup, nombre,
                   f"area directa; e={cap*1000:.0f} mm")
             if not es_conservacion:
                 base = pav["base_granular_m"]

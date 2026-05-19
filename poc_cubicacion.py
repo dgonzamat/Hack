@@ -866,11 +866,20 @@ def main() -> None:
                 secciones = yaml.safe_load(_f)
 
         if args.tipo == "electrico":
-            print(f"  Modo: cubicación eléctrica — altura pique {args.altura}m\n")
+            # En modo --from-json: pasar piques y tramos_tunel si están en el JSON
+            _piques_data = datos.get("piques") if args.from_json else None
+            _tramos_data = datos.get("tramos_tunel") if args.from_json else None
+            if _piques_data:
+                print(f"  Modo: cubicación eléctrica — {len(_piques_data)} piques + "
+                      f"{len(_tramos_data or [])} tramos (datos estructurados)\n")
+            else:
+                print(f"  Modo: cubicación eléctrica — altura pique {args.altura}m (legacy)\n")
             cubicacion = cubicar_electrico(
                 primera,
                 altura_global=args.altura,
                 alturas_override=alturas_override,
+                piques=_piques_data,
+                tramos_tunel=_tramos_data,
             )
             # Modo electrico: usar formato licitacion en lugar del Excel estándar
             try:

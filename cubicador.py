@@ -1050,106 +1050,130 @@ _ELEC_BANDEJA = re.compile(r"\bBANDEJA\b")
 
 def cubicar_electrico(
     resultado: dict,
-    altura_global: float = 20.0,
+    altura_global: float = 15.5,
     alturas_override: Optional[dict] = None,
+    piques: Optional[list] = None,
+    tramos_tunel: Optional[list] = None,
 ) -> dict:
     """
-    Cubica infraestructura de túnel eléctrico: piques, liner, radier, tableros, fans, etc.
+    Cubica infraestructura de túnel eléctrico LAT Vitacura-Providencia.
 
-    Devuelve el mismo formato que cubicar():
-      - partidas: [{partida, unidad, cantidad, desglose}]
-      - clasificacion_recintos: [...]
-      - recintos_sin_area: [...]
-      - resumen_areas: {confiable_m2, incierta_m2, total_m2}
-      - tipo: "electrico"
+    Si se pasan `piques` y `tramos_tunel` (desde el JSON con datos_proyecto),
+    genera cantidades exactas por pique (4.1–4.9) y por tramo (5.1–5.8).
+    Si no, cae al modo legacy usando los recintos del resultado (solo PIQUE 1).
+
+    Constantes geométricas (confirmadas BAE + planos):
+      - Pique Ø4.0m interior → área sección = π×2² = 12.57 m²
+      - Túnel Ø2.21m interior → área sección = π×1.105² = 3.84 m²
+      - Radier: ancho = 2.21m, espesor = 0.15m → 0.332 m³/m
     """
-    recintos = resultado.get("recintos", [])
-    alturas_override = alturas_override or {}
+    # Constantes geométricas confirmadas
+    AREA_PIQUE_M2 = math.pi * 2.0 ** 2       # 12.57 m² — Ø4.0m interior
+    AREA_TUNEL_M2 = math.pi * 1.105 ** 2     # 3.84 m²  — Ø2.21m interior
+    RADIER_VOL_PER_M = 2.21 * 0.15            # 0.332 m³/m — base plana del túnel
 
+    alturas_override = alturas_override or {}
     acum: dict[str, dict] = {}
+    piques_qty: dict[int, dict[str, float]] = {}
+    tramos_qty: dict[int, dict[str, float]] = {}
     clasif = []
     recintos_sin_area: list[str] = []
-    area_total = 0.0
 
     def _add(key: str, desc: str, unidad: str, cant: float, nota: str) -> None:
         if key not in acum:
-            acum[key] = {"partida": key, "descripcion": desc, "unidad": unidad, "cantidad": 0.0, "desglose": []}
+            acum[key] = {"partida": key, "descripcion": desc, "unidad": unidad,
+                         "cantidad": 0.0, "desglose": []}
         acum[key]["cantidad"] += cant
         acum[key]["desglose"].append({"recinto": nota, "cantidad": round(cant, 2)})
 
-    for rec in recintos:
-        nombre = rec.get("nombre", "?")
-        n = _norm(nombre)
-        area = area_efectiva(rec)
-        h = alturas_override.get(nombre, altura_global)
-        conf = rec.get("confianza") or 0
-
-        clasif.append({
-            "nombre": nombre,
-            "departamento": rec.get("departamento"),
-            "categoria": "vial",
-            "area_m2": area,
-            "confianza": conf,
-        })
-
-        if area is None:
-            recintos_sin_area.append(nombre)
-        else:
-            area_total += area
-
-        # ── Pique: excavación (m³) + retiro (m³) + liner (m lineal) ──────────
-        # Unidades según licitación real STM: liner en metros lineales de avance
-        if _ELEC_PIQUE.search(n) and not _ELEC_PLATAFORMA.search(n):
-            if area:
-                vol = area * h
-                _add("excavacion_pique", "Excavación pique", "m3",
-                     vol, f"{nombre} ({area:.1f}m²×{h:.0f}m)")
-                _add("retiro_excavacion_pique", "Retiro excavación y transporte", "m3",
-                     vol, f"{nombre}")
-                # Liner en m lineales (un anillo = 1m de avance)
-                _add("montaje_liner_pique", "Montaje liner pique (sello+mortero)", "m",
-                     h, f"{nombre} ({h:.0f}m profundidad)")
-                # Escalas + plataformas: 1 gl por pique (STM aporta estructuras)
-                _add("montaje_escalas_plataformas", "Montaje escalas y plataformas", "gl",
-                     1, nombre)
+    if piques:
+        # ── Modo multi-pique: datos estructurados desde JSON ─────────────────
+        for pq in piques:
+            pid = pq["id"]
+            prof = float(pq["profundidad_m"])
+            excav = AREA_PIQUE_M2 * prof
+            piques_qty[pid] = {
+                "excavacion_pique":            round(excav, 2),
+                "retiro_excavacion_pique":     round(excav, 2),
+                "montaje_liner_pique":         round(prof, 1),
+                "montaje_escalas_plataformas": 1,
+                "brocal_definitivo":           1,
+            }
+            nota = f"Pique {pid} (Ø4.0m × {prof:.1f}m prof.)"
+            _add("excavacion_pique", "Excavación pique", "m3", excav, nota)
+            _add("retiro_excavacion_pique", "Retiro excavación y transporte botadero", "m3", excav, nota)
+            _add("montaje_liner_pique", "Montaje liner pique Ø4.0m (sello+mortero)", "m", prof, nota)
+            _add("montaje_escalas_plataformas", "Montaje escalas y plataformas (STM aporta)", "gl", 1, f"Pique {pid}")
+            _add("brocal_definitivo", "Construcción brocal definitivo", "gl", 1, f"Pique {pid}")
+    else:
+        # ── Modo legacy: un pique desde recintos (fallback) ───────────────────
+        for rec in resultado.get("recintos", []):
+            nombre = rec.get("nombre", "?")
+            n = _norm(nombre)
+            area = area_efectiva(rec)
+            h = alturas_override.get(nombre, altura_global)
+            conf = rec.get("confianza") or 0
+            clasif.append({"nombre": nombre, "departamento": rec.get("departamento"),
+                            "categoria": "electrico", "area_m2": area, "confianza": conf})
+            if area is None:
+                recintos_sin_area.append(nombre)
+            if _ELEC_PIQUE.search(n) and not _ELEC_PLATAFORMA.search(n) and area:
+                excav = area * h
+                _add("excavacion_pique", "Excavación pique", "m3", excav,
+                     f"{nombre} ({area:.1f}m²×{h:.0f}m)")
+                _add("retiro_excavacion_pique", "Retiro excavación y transporte", "m3", excav, nombre)
+                _add("montaje_liner_pique", "Montaje liner pique (sello+mortero)", "m", h,
+                     f"{nombre} ({h:.0f}m prof.)")
+                _add("montaje_escalas_plataformas", "Montaje escalas y plataformas", "gl", 1, nombre)
                 _add("brocal_definitivo", "Construcción brocal definitivo", "gl", 1, nombre)
+            if _ELEC_FAN.search(n):
+                _add("montaje_jet_fan", "Montaje Jet Fan 3.5kW (STM aporta)", "und", 1, nombre)
 
-        # ── Túnel (Ø2.21m): excavación + liner lineal + radier (m³) ──────────
-        elif _ELEC_TUNEL.search(n) and not _ELEC_PIQUE.search(n):
-            if area:
-                vol = area * h
-                _add("excavacion_tunel", "Excavación túnel", "m3",
-                     vol, f"{nombre} ({area:.1f}m²×{h:.0f}m)")
-                _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", vol, nombre)
-                _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m (sello+mortero)", "m",
-                     h, f"{nombre} ({h:.0f}m longitud)")
-                # Radier = área × espesor 0.15m
+    if tramos_tunel:
+        # ── Modo multi-tramo: datos estructurados desde JSON ─────────────────
+        for tr in tramos_tunel:
+            tid = tr["id"]
+            lng = float(tr["longitud_m"])
+            excav = AREA_TUNEL_M2 * lng
+            radier = RADIER_VOL_PER_M * lng
+            tramos_qty[tid] = {
+                "excavacion_tunel":       round(excav, 2),
+                "retiro_excavacion_tunel": round(excav, 2),
+                "montaje_liner_tunel":    round(lng, 1),
+                "radier_tunel":           round(radier, 2),
+            }
+            nota = f"Tramo {tid} P{tr['entre_piques']} ({lng:.0f}m)"
+            _add("excavacion_tunel", "Excavación túnel Ø2.21m", "m3", excav, nota)
+            _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", excav, nota)
+            _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m (sello+mortero)", "m", lng, nota)
+            _add("radier_tunel", "Radier hormigón H30 e=15cm", "m3", radier, nota)
+    else:
+        # ── Modo legacy: un tramo desde recintos ──────────────────────────────
+        for rec in resultado.get("recintos", []):
+            nombre = rec.get("nombre", "?")
+            n = _norm(nombre)
+            area = area_efectiva(rec)
+            h = alturas_override.get(nombre, altura_global)
+            if _ELEC_TUNEL.search(n) and not _ELEC_PIQUE.search(n) and area:
+                lng = h  # en modo legacy h = longitud estimada
+                excav = AREA_TUNEL_M2 * lng
+                _add("excavacion_tunel", "Excavación túnel Ø2.21m", "m3", excav,
+                     f"{nombre} ({lng:.0f}m)")
+                _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", excav, nombre)
+                _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m", "m", lng, nombre)
                 _add("radier_tunel", "Radier hormigón H30 e=15cm", "m3",
-                     area * 0.15, nombre)
+                     RADIER_VOL_PER_M * lng, nombre)
 
-        # ── Plataformas: montaje (STM aporta estructuras galvanizadas) ────────
-        if _ELEC_PLATAFORMA.search(n):
-            # No calcular parrilla por m² — licitación mide como kg o gl
-            # Registrar como informativo (sin precio) para visibilidad
-            pass
-
-        # ── Equipos (STM aporta, contratista instala) ─────────────────────────
-        if _ELEC_FAN.search(n):
-            _add("montaje_jet_fan", "Montaje Jet Fan 3.5kW (STM aporta equipo)", "und", 1, nombre)
-        if _ELEC_ESCALERA.search(n):
-            # Escalera contada por pique, ya incluida en montaje_escalas_plataformas
-            pass
-        if _ELEC_BANDEJA.search(n):
-            # Bandeja cubierta — montaje de estructura soporte cables (kg en licitación)
-            pass
-
-    partidas = [
-        {**v, "cantidad": round(v["cantidad"], 2)}
-        for v in acum.values()
-    ]
+    partidas = [{**v, "cantidad": round(v["cantidad"], 2)} for v in acum.values()]
+    area_total = sum(
+        pq.get("excavacion_pique", 0) / pq.get("montaje_liner_pique", 1) * AREA_PIQUE_M2
+        for pq in piques_qty.values()
+    ) if piques_qty else 0.0
 
     return {
         "partidas": partidas,
+        "piques_qty": piques_qty,
+        "tramos_qty": tramos_qty,
         "clasificacion_recintos": clasif,
         "vanos_detalle": [],
         "recintos_sin_area": recintos_sin_area,
@@ -1160,5 +1184,3 @@ def cubicar_electrico(
         },
         "tipo": "electrico",
     }
-
-    return {"aplicado": False, "razon": f"sin mejora >=10% (error inicial {error_inicial:.1f}%)"}

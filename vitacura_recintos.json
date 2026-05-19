@@ -1,7 +1,181 @@
 {
   "_fuente": "STM38136002 + STM38136003 — SS/EE VITACURA Y PROVIDENCIA 110/12 kV",
-  "_extraccion": "Manual desde planos PLA-ELE-STM-38136 rev.1 (06/04/2026)",
-  "_nota": "Infraestructura túnel eléctrico. Piques circulares Ø4000mm interior. Área sección = π×2²=12.57 m². Plataformas cada ~2m de altura.",
+  "_extraccion": "Manual desde planos PLA-ELE-STM-38136 rev.1 (06/04/2026) + BAE Licitación 2025-25-TX-SS-RM rev.0 (13/04/2026)",
+  "_nota": "Infraestructura túnel eléctrico LAT Vitacura-Providencia. Piques circulares Ø4000mm interior. Túnel liner Ø2210mm interior. Total ~2.5 km, 9 piques, 8 tramos.",
+
+  "datos_proyecto": {
+    "titulo": "Obras Civiles Línea 2×110 kV Vitacura-Providencia",
+    "licitacion": "2025-25-TX-SS-RM",
+    "mandante": "STM",
+    "longitud_total_m": 2530,
+    "diametro_tunel_m": 2.21,
+    "area_sec_tunel_m2": 3.84,
+    "diametro_pique_m": 4.0,
+    "area_sec_pique_m2": 12.57,
+    "profundidades_rango_m": [14, 20],
+    "piques_totales": 9,
+    "tramos_tunel": 8,
+    "uf_referencial_mayo2026": 38500
+  },
+
+  "piques": [
+    {
+      "id": 1,
+      "km_aprox": 0.000,
+      "obra": "1A",
+      "profundidad_m": 20.0,
+      "fuente_profundidad": "plano elevacion PLA-ELE-STM-38136 rev.1 (EL.+605.10 → EL.+625.06)",
+      "notas": "SS Vitacura. Tableros TDF 1-5, TDF VIT, TDFyA 1. 8 plataformas. Ventiladores FAN.01/02"
+    },
+    {
+      "id": 2,
+      "km_aprox": 0.285,
+      "obra": "1A",
+      "profundidad_m": 16.5,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique típico Ø4200mm fundación. TDF + TDFyA + FAN 1/2/3"
+    },
+    {
+      "id": 3,
+      "km_aprox": 0.600,
+      "obra": "1A",
+      "profundidad_m": 15.0,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique típico. Av. Costanera Sur"
+    },
+    {
+      "id": 4,
+      "km_aprox": 0.900,
+      "obra": "1A",
+      "profundidad_m": 14.5,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique típico. Av. Costanera Sur"
+    },
+    {
+      "id": 5,
+      "km_aprox": 1.300,
+      "obra": "1A/1B",
+      "profundidad_m": 16.0,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique límite Obra 1A/1B (km 1.300). Av. Andrés Bello"
+    },
+    {
+      "id": 6,
+      "km_aprox": 1.620,
+      "obra": "1B",
+      "profundidad_m": 17.0,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique típico. Av. Andrés Bello"
+    },
+    {
+      "id": 7,
+      "km_aprox": 1.940,
+      "obra": "1B",
+      "profundidad_m": 16.5,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique típico. C. Carlos Charlín"
+    },
+    {
+      "id": 8,
+      "km_aprox": 2.245,
+      "obra": "1B",
+      "profundidad_m": 15.5,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "Pique típico. C. Carlos Charlín"
+    },
+    {
+      "id": 9,
+      "km_aprox": 2.530,
+      "obra": "1B",
+      "profundidad_m": 14.5,
+      "fuente_profundidad": "estimado BAE [14-17m variable]",
+      "notas": "SS Providencia. Punto final LTE"
+    }
+  ],
+
+  "tramos_tunel": [
+    {
+      "id": 1,
+      "entre_piques": "P1-P2",
+      "longitud_m": 285,
+      "km_inicio": 0.000,
+      "km_fin": 0.285,
+      "obra": "1A",
+      "fuente_longitud": "estimado (total 2530m / 8 tramos, ajustado geométricamente)",
+      "notas": "Bajo Av. Costanera Sur"
+    },
+    {
+      "id": 2,
+      "entre_piques": "P2-P3",
+      "longitud_m": 315,
+      "km_inicio": 0.285,
+      "km_fin": 0.600,
+      "obra": "1A",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo Av. Costanera Sur"
+    },
+    {
+      "id": 3,
+      "entre_piques": "P3-P4",
+      "longitud_m": 300,
+      "km_inicio": 0.600,
+      "km_fin": 0.900,
+      "obra": "1A",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo Av. Costanera Sur"
+    },
+    {
+      "id": 4,
+      "entre_piques": "P4-P5",
+      "longitud_m": 400,
+      "km_inicio": 0.900,
+      "km_fin": 1.300,
+      "obra": "1A",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo Av. Costanera Sur → Av. Andrés Bello. Tramo más largo"
+    },
+    {
+      "id": 5,
+      "entre_piques": "P5-P6",
+      "longitud_m": 320,
+      "km_inicio": 1.300,
+      "km_fin": 1.620,
+      "obra": "1B",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo Av. Andrés Bello"
+    },
+    {
+      "id": 6,
+      "entre_piques": "P6-P7",
+      "longitud_m": 320,
+      "km_inicio": 1.620,
+      "km_fin": 1.940,
+      "obra": "1B",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo Av. Andrés Bello"
+    },
+    {
+      "id": 7,
+      "entre_piques": "P7-P8",
+      "longitud_m": 305,
+      "km_inicio": 1.940,
+      "km_fin": 2.245,
+      "obra": "1B",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo C. Carlos Charlín"
+    },
+    {
+      "id": 8,
+      "entre_piques": "P8-P9",
+      "longitud_m": 285,
+      "km_inicio": 2.245,
+      "km_fin": 2.530,
+      "obra": "1B",
+      "fuente_longitud": "estimado",
+      "notas": "Bajo C. Carlos Charlín → SS Providencia"
+    }
+  ],
+
   "resultados": [
     {
       "_pagina": 1,
@@ -91,14 +265,8 @@
           "_nota": "EL. +620.900"
         }
       ],
-      "muros": {
-        "exterior_ml": 0,
-        "interior_ml": 0
-      },
-      "vanos": {
-        "puertas": [],
-        "ventanas": []
-      }
+      "muros": {"exterior_ml": 0, "interior_ml": 0},
+      "vanos": {"puertas": [], "ventanas": []}
     },
     {
       "_pagina": 2,
@@ -164,14 +332,8 @@
           "_nota": "L6.5x4.78 @ -265. Soporte escala. Acceso vertical."
         }
       ],
-      "muros": {
-        "exterior_ml": 0,
-        "interior_ml": 0
-      },
-      "vanos": {
-        "puertas": [],
-        "ventanas": []
-      }
+      "muros": {"exterior_ml": 0, "interior_ml": 0},
+      "vanos": {"puertas": [], "ventanas": []}
     }
   ],
   "schedules": {

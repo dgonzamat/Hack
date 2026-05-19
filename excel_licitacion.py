@@ -48,40 +48,66 @@ _PIQUE_ITEMS = {
     "retiro_excavacion_pique":     "4.{p}.2",
     "montaje_liner_pique":         "4.{p}.3",
     "montaje_escalas_plataformas": "4.{p}.8",
-    "brocal_definitivo":           "4.{p}.15",
+    # brocal_definitivo: piques 1,9 tienen 15 sub-ítems (→ .15); piques 2-8 tienen 14 (→ .14)
+    # Se maneja dinámicamente en _build_qty_map
 }
 # Items de tunnel: para tramo T (1..8)
 _TUNEL_ITEMS = {
-    "excavacion_tunel":   "5.{t}.1",
+    "excavacion_tunel":        "5.{t}.1",
     "retiro_excavacion_tunel": "5.{t}.2",
-    "montaje_liner_tunel": "5.{t}.3",
-    "radier_tunel":        "5.{t}.7",
+    "montaje_liner_tunel":     "5.{t}.3",
+    "radier_tunel":            "5.{t}.7",
 }
+# Piques 1,9 tienen ítem extra "Montaje estructura soporte de cables" (4.x.13)
+# → brocal definitivo queda en 4.x.15. Para piques 2-8 está en 4.x.14.
+_BROCAL_NUM: dict[int, str] = {p: "14" for p in range(2, 9)}
+_BROCAL_NUM.update({1: "15", 9: "15"})
 
 
 def _build_qty_map(cubicacion: dict) -> dict[str, float]:
     """
     Construye {item_num: cantidad} a partir de las partidas cubicadas.
-    Asume que las cantidades del pique corresponden a PIQUE 1 (4.1.x).
-    Las cantidades de tunel se distribuyen entre los 8 tramos (5.1-5.8).
+
+    Si cubicacion tiene piques_qty / tramos_qty (modo multi-pique estructurado),
+    genera una entrada por pique (4.1.x … 4.9.x) y por tramo (5.1.x … 5.8.x).
+    Fallback: PIQUE 1 solamente y distribución uniforme entre 8 tramos.
     """
-    partidas = {p["partida"]: p["cantidad"] for p in cubicacion.get("partidas", [])}
     qty: dict[str, float] = {}
 
-    # Pique 1 (solo tenemos datos del primer pique)
-    for key, tpl in _PIQUE_ITEMS.items():
-        if key in partidas:
-            num = tpl.replace("{p}", "1")
-            qty[num] = partidas[key]
+    piques_qty: dict = cubicacion.get("piques_qty", {})
+    tramos_qty: dict = cubicacion.get("tramos_qty", {})
 
-    # Tunnel: distribuir entre 8 tramos
-    n_tramos = 8
-    for key, tpl in _TUNEL_ITEMS.items():
-        if key in partidas:
-            cant_por_tramo = round(partidas[key] / n_tramos, 3)
-            for t in range(1, n_tramos + 1):
-                num = tpl.replace("{t}", str(t))
-                qty[num] = cant_por_tramo
+    if piques_qty:
+        for pid, pq in piques_qty.items():
+            pid_i = int(pid)
+            for key, tpl in _PIQUE_ITEMS.items():
+                if key in pq:
+                    qty[tpl.replace("{p}", str(pid_i))] = pq[key]
+            if "brocal_definitivo" in pq:
+                brocal_num = _BROCAL_NUM.get(pid_i, "15")
+                qty[f"4.{pid_i}.{brocal_num}"] = pq["brocal_definitivo"]
+    else:
+        partidas = {p["partida"]: p["cantidad"] for p in cubicacion.get("partidas", [])}
+        for key, tpl in _PIQUE_ITEMS.items():
+            if key in partidas:
+                qty[tpl.replace("{p}", "1")] = partidas[key]
+        if "brocal_definitivo" in partidas:
+            qty["4.1.15"] = partidas["brocal_definitivo"]
+
+    if tramos_qty:
+        for tid, tq in tramos_qty.items():
+            for key, tpl in _TUNEL_ITEMS.items():
+                if key in tq:
+                    num = tpl.replace("{t}", str(tid))
+                    qty[num] = tq[key]
+    else:
+        partidas = {p["partida"]: p["cantidad"] for p in cubicacion.get("partidas", [])}
+        n_tramos = 8
+        for key, tpl in _TUNEL_ITEMS.items():
+            if key in partidas:
+                cant_por_tramo = round(partidas[key] / n_tramos, 3)
+                for t in range(1, n_tramos + 1):
+                    qty[tpl.replace("{t}", str(t))] = cant_por_tramo
 
     return qty
 
@@ -312,23 +338,51 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         ])
     blank()
 
-    # ── Sección 4: Análisis de sensatez ───────────────────────────────────────
-    subtitle("4. ANÁLISIS DE SENSATEZ — PIQUE 1 (20m prof., Ø4.0m)")
+    # ── Sección 4: Análisis de sensatez — proyecto completo ─────────────────
+    piques_qty = cubicacion.get("piques_qty", {})
+    tramos_qty = cubicacion.get("tramos_qty", {})
+
+    # Construir escenarios desde datos reales si están disponibles
+    if piques_qty and tramos_qty:
+        total_excav_pq = sum(pq["excavacion_pique"] for pq in piques_qty.values())
+        total_liner_pq = sum(pq["montaje_liner_pique"] for pq in piques_qty.values())
+        total_escalas  = len(piques_qty)
+        total_brocal   = len(piques_qty)
+        total_excav_tn = sum(tq["excavacion_tunel"] for tq in tramos_qty.values())
+        total_liner_tn = sum(tq["montaje_liner_tunel"] for tq in tramos_qty.values())
+        total_radier   = sum(tq["radier_tunel"] for tq in tramos_qty.values())
+        n_piques = len(piques_qty)
+        n_tramos = len(tramos_qty)
+        subtitle(f"4. ANÁLISIS DE SENSATEZ — PROYECTO COMPLETO ({n_piques} piques + {n_tramos} tramos)")
+        escenarios = [
+            ("Excavación piques",          total_excav_pq, 2.0,  2.75, 3.5),
+            ("Retiro excav. piques",       total_excav_pq, 0.8,  1.15, 1.5),
+            ("Montaje liner piques",       total_liner_pq, 4.0,  6.0,  8.0),
+            ("Montaje escalas+plataformas",total_escalas,  60.0, 90.0, 120.0),
+            ("Brocal definitivo",          total_brocal,   80.0, 115.0,150.0),
+            ("Excavación túnel",           total_excav_tn, 3.5,  5.0,  6.0),
+            ("Montaje liner túnel",        total_liner_tn, 3.5,  4.75, 6.0),
+            ("Radier H30",                 total_radier,   7.0,  8.5,  10.0),
+        ]
+    else:
+        subtitle("4. ANÁLISIS DE SENSATEZ — PIQUE 1 (20m prof., Ø4.0m)")
+        escenarios = _PIQUE1_ESCENARIOS
+
     header_row(["Partida", "Cant.", "UF/un Mín", "UF/un Máx",
                 "Subtotal Mín (UF)", "Subtotal Máx (UF)"])
 
     total_min = total_max = 0.0
-    for desc, cant, uf_min, _mid, uf_max in _PIQUE1_ESCENARIOS:
+    for entry in escenarios:
+        desc, cant, uf_min, _mid, uf_max = entry
         sub_min = round(cant * uf_min, 1)
         sub_max = round(cant * uf_max, 1)
         total_min += sub_min
         total_max += sub_max
-        data_row([desc, cant, f"{uf_min:.2f}", f"{uf_max:.2f}",
+        data_row([desc, round(cant, 1), f"{uf_min:.2f}", f"{uf_max:.2f}",
                   f"{sub_min:,.1f}", f"{sub_max:,.1f}"])
 
-    # Fila total pique 1
     for i, v in enumerate([
-        "TOTAL PIQUE 1 (ítems cubicados)", "",  "", "",
+        "TOTAL ÍTEMS CUBICADOS", "", "", "",
         f"{total_min:,.0f} UF  (~${int(total_min*UF_CLP/1e6):.0f}M CLP)",
         f"{total_max:,.0f} UF  (~${int(total_max*UF_CLP/1e6):.0f}M CLP)",
     ], 1):
@@ -336,21 +390,9 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         c.font = _FONT_BOLD; c.fill = _FILL_SECTION; c.border = _BORDER_THIN
     row += 1
 
-    # Nota: 9 piques
-    t9_min = int(total_min * 9)
-    t9_max = int(total_max * 9)
-    nota = (f"Para 9 piques similares (ítems cubicados): "
-            f"{t9_min:,}–{t9_max:,} UF  "
-            f"(~${int(t9_min*UF_CLP/1e9):.1f}B–${int(t9_max*UF_CLP/1e9):.1f}B CLP)")
-    c = ws.cell(row=row, column=1, value=nota)
-    c.font = Font(italic=True, bold=True, size=9)
-    ws.merge_cells(f"A{row}:F{row}")
-    row += 1
-
     c = ws.cell(row=row, column=1,
-        value="⚠ NOTA: Los ítems gl (escalas, brocal, terminaciones) son suma alzada. "
-              "El rango anterior NO incluye shotcrete, malla, pernos ni instalación de faenas "
-              "— típicamente +30-50% sobre los ítems cubicados.")
+        value="⚠ NOTA: El rango anterior NO incluye shotcrete, malla, pernos, terminaciones, "
+              "instalación de faenas ni actividades previas (Sec. 1, 3) — típicamente +30-50% adicional.")
     c.font = Font(italic=True, size=8, color="C00000")
     ws.merge_cells(f"A{row}:F{row}")
     row += 2

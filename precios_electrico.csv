@@ -1,0 +1,37 @@
+# Precios indicativos Chile — Licitacion Construccion OOCC Tunel LAT Vitacura-Providencia
+# Fuente: ONDAC Q1 2026 + estimados mercado — verificar con cotizacion local antes de uso comercial
+# IMPORTANTE: Items con "Aporte STM" = material suministrado por mandante, precio es solo INSTALACION.
+# Referencia estructura: Cuadro Precios STM38136 rev.1 (06/04/2026)
+# Unidades de liner: m lineal de pique (un anillo = un metro de avance)
+# Fecha actualizacion: 2026-04
+partida,unidad,precio_clp,fuente,fecha
+# ── Obras Civiles por pique (sec. 4.x) ─────────────────────────────────────
+excavacion_pique,m3,85000,ONDAC 2026Q1,2026-04
+retiro_excavacion_pique,m3,35000,ONDAC+estimado,2026-04
+montaje_liner_pique,m,220000,estimado instalacion (STM aporta liner),2026-04
+shotcrete_pique,m3,180000,ONDAC 2026Q1,2026-04
+malla_pique,kg,1200,ONDAC 2026Q1,2026-04
+pernos_convergencia,und,45000,ONDAC+estimado,2026-04
+montaje_escalas_plataformas,gl,3200000,estimado por pique (STM aporta estructuras),2026-04
+brocal_definitivo,gl,4500000,estimado por pique,2026-04
+# ── Obras Civiles tunel (sec. 5.x) ──────────────────────────────────────────
+excavacion_tunel,m3,95000,ONDAC 2026Q1,2026-04
+retiro_excavacion_tunel,m3,38000,ONDAC+estimado,2026-04
+montaje_liner_tunel,m,180000,estimado instalacion (STM aporta liner Ø2.21m),2026-04
+radier_tunel,m3,280000,ONDAC hormigon estructural H30,2026-04
+# ── Equipos (sec. 6.x — STM aporta equipos, precio es solo montaje) ─────────
+montaje_jet_fan,und,380000,estimado montaje (STM aporta Fan 3.5kW),2026-04
+# ── Reposicion superficial (sec. 7.x) ───────────────────────────────────────
+base_binder_asfalto,m2,8500,ONDAC 2026Q1,2026-04
+base_chancada_cbr80,m3,18000,ONDAC+estimado,2026-04
+calzada_asfaltica,m2,35000,ONDAC 2026Q1,2026-04
+demolicion_calzada,m3,12000,ONDAC+estimado,2026-04
+excavacion_dura,m3,28000,ONDAC+estimado,2026-04
+imprimacion_asfalto,m2,2500,ONDAC 2026Q1,2026-04
+preparacion_subrasante,m2,4500,ONDAC 2026Q1,2026-04
+riego_liga,m2,1200,ONDAC 2026Q1,2026-04
+subbase_estabilizada,m3,22000,ONDAC+estimado,2026-04
+entibacion_excavaciones,m,85000,ONDAC+estimado,2026-04
+reposicion_areas_verdes,m2,12000,ONDAC 2026Q1,2026-04
+reposicion_soleras,m,35000,ONDAC 2026Q1,2026-04
+demolicion_reposicion_veredas,m2,22000,ONDAC 2026Q1,2026-04

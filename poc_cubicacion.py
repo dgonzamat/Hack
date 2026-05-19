@@ -739,6 +739,9 @@ def main() -> None:
                         help="Fracción IVA (default 0.19 Chile)")
     parser.add_argument("--incluir-comunes", action="store_true",
                         help="Incluye áreas comunes en cubicación (default false)")
+    parser.add_argument("--tipo", default="arquitectonico",
+                        choices=["arquitectonico", "vial", "electrico"],
+                        help="Tipo de proyecto para cubicación (default arquitectonico)")
     parser.add_argument("--secciones", default=None,
                         help="YAML con secciones transversales del proyecto (ej: secciones_civiles.yaml)")
     parser.add_argument("--reattribute", action="store_true",
@@ -820,7 +823,7 @@ def main() -> None:
 
     if args.excel:
         try:
-            from cubicador import cubicar
+            from cubicador import cubicar, cubicar_electrico
             from presupuesto import cargar_precios, presupuestar, imprimir_presupuesto
             from excel import exportar_excel
         except ImportError as e:
@@ -834,7 +837,12 @@ def main() -> None:
             except json.JSONDecodeError as e:
                 print(f"  WARN: --alturas JSON inválido ({e}), ignorando")
 
-        ruta_precios = Path(args.precios)
+        # Precios: electrico usa precios_electrico.csv por defecto cuando --tipo electrico
+        if args.tipo == "electrico" and args.precios == "precios_cl.csv":
+            precios_path = "precios_electrico.csv"
+        else:
+            precios_path = args.precios
+        ruta_precios = Path(precios_path)
         if not ruta_precios.is_absolute():
             ruta_precios = Path(__file__).parent / ruta_precios
         if not ruta_precios.exists():
@@ -857,18 +865,45 @@ def main() -> None:
             with open(args.secciones, encoding="utf-8") as _f:
                 secciones = yaml.safe_load(_f)
 
-        cubicacion = cubicar(
-            primera,
-            altura_global=args.altura,
-            alturas_override=alturas_override,
-            incluir_comunes=args.incluir_comunes,
-            secciones=secciones,
-        )
-        pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
-        imprimir_presupuesto(pres)
-
-        ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
-        print(f"  Excel guardado: {ruta_xlsx}\n")
+        if args.tipo == "electrico":
+            # En modo --from-json: pasar piques y tramos_tunel si están en el JSON
+            _piques_data = datos.get("piques") if args.from_json else None
+            _tramos_data = datos.get("tramos_tunel") if args.from_json else None
+            if _piques_data:
+                print(f"  Modo: cubicación eléctrica — {len(_piques_data)} piques + "
+                      f"{len(_tramos_data or [])} tramos (datos estructurados)\n")
+            else:
+                print(f"  Modo: cubicación eléctrica — altura pique {args.altura}m (legacy)\n")
+            cubicacion = cubicar_electrico(
+                primera,
+                altura_global=args.altura,
+                alturas_override=alturas_override,
+                piques=_piques_data,
+                tramos_tunel=_tramos_data,
+            )
+            # Modo electrico: usar formato licitacion en lugar del Excel estándar
+            try:
+                from excel_licitacion import exportar_licitacion
+                ruta_xlsx = exportar_licitacion(cubicacion, primera, args.excel)
+                print(f"  Excel licitación guardado: {ruta_xlsx}\n")
+            except Exception as e:
+                print(f"  WARN: excel_licitacion falló ({e}), usando formato estándar")
+                pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
+                imprimir_presupuesto(pres)
+                ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
+                print(f"  Excel guardado: {ruta_xlsx}\n")
+        else:
+            cubicacion = cubicar(
+                primera,
+                altura_global=args.altura,
+                alturas_override=alturas_override,
+                incluir_comunes=args.incluir_comunes,
+                secciones=secciones,
+            )
+            pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
+            imprimir_presupuesto(pres)
+            ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
+            print(f"  Excel guardado: {ruta_xlsx}\n")
 
 
 if __name__ == "__main__":

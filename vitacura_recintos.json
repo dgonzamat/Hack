@@ -45,11 +45,11 @@
     },
     {
       "id": 4,
-      "km_aprox": 0.900,
+      "km_aprox": 0.991,
       "obra": "1A",
       "profundidad_m": 14.5,
       "fuente_profundidad": "estimado BAE [14-17m variable]",
-      "notas": "Pique típico. Av. Costanera Sur"
+      "notas": "Pique típico. Av. Costanera Sur — km recalculado por T3 confirmado 390.5m"
     },
     {
       "id": 5,
@@ -117,22 +117,22 @@
     {
       "id": 3,
       "entre_piques": "P3-P4",
-      "longitud_m": 300,
+      "longitud_m": 390.5,
       "km_inicio": 0.600,
-      "km_fin": 0.900,
+      "km_fin": 0.991,
       "obra": "1A",
-      "fuente_longitud": "estimado",
-      "notas": "Bajo Av. Costanera Sur"
+      "fuente_longitud": "confirmado STM38019 pág.54 — cruce Canal San Carlos y Del Carmen",
+      "notas": "Paso bajo Canal San Carlos (5.2m cobertura) y Canal del Carmen (6.3m cobertura)"
     },
     {
       "id": 4,
       "entre_piques": "P4-P5",
-      "longitud_m": 400,
-      "km_inicio": 0.900,
+      "longitud_m": 309.5,
+      "km_inicio": 0.991,
       "km_fin": 1.300,
       "obra": "1A",
-      "fuente_longitud": "estimado",
-      "notas": "Bajo Av. Costanera Sur → Av. Andrés Bello. Tramo más largo"
+      "fuente_longitud": "recalculado (2530m total − tramos confirmados/estimados restantes)",
+      "notas": "Bajo Av. Costanera Sur → Av. Andrés Bello"
     },
     {
       "id": 5,

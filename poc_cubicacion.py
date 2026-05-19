@@ -716,7 +716,11 @@ def procesar_pagina(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PoC cubicación AI v5 — cubicación + presupuesto + Excel")
-    parser.add_argument("pdf")
+    parser.add_argument("pdf", nargs="?", default=None,
+                        help="PDF del plano. Omitir si se usa --from-json.")
+    parser.add_argument("--from-json", default=None, metavar="PATH",
+                        help="Carga recintos desde JSON pre-extraído (omite API). "
+                             "Formato: {\"resultados\":[...], \"schedules\":{...}}")
     parser.add_argument("--paginas", default=None)
     parser.add_argument("--dpi", type=int, default=DPI_DEFAULT)
     parser.add_argument("--tiles", type=_parse_tiles, default=None,
@@ -741,40 +745,56 @@ def main() -> None:
                         help="Aplicar reattribution post-hoc usando schedule")
     args = parser.parse_args()
 
-    ruta = Path(args.pdf)
-    if not ruta.exists():
-        print(f"ERROR: '{ruta}' no existe")
-        sys.exit(1)
+    # ── Modo --from-json: carga recintos pre-extraídos, omite PDF y API ──────────
+    if args.from_json:
+        ruta_json = Path(args.from_json)
+        if not ruta_json.exists():
+            print(f"ERROR: '{ruta_json}' no existe")
+            sys.exit(1)
+        with open(ruta_json, encoding="utf-8") as f:
+            datos = json.load(f)
+        resultados = datos.get("resultados", [])
+        schedules = {int(k): v for k, v in datos.get("schedules", {}).items()}
+        print(f"\n📐 PoC Cubicación AI v5  [modo offline — sin API]")
+        print(f"   {ruta_json.name}  |  {len(resultados)} lámina(s) cargadas\n")
+    else:
+        # ── Modo normal: extrae desde PDF via Claude API ───────────────────────
+        if not args.pdf:
+            parser.error("Se requiere 'pdf' o --from-json")
+        ruta = Path(args.pdf)
+        if not ruta.exists():
+            print(f"ERROR: '{ruta}' no existe")
+            sys.exit(1)
 
-    doc = pymupdf.open(str(ruta))
-    total_pags = len(doc)
-    doc.close()
+        doc = pymupdf.open(str(ruta))
+        total_pags = len(doc)
+        doc.close()
 
-    indices = (
-        [int(p.strip()) - 1 for p in args.paginas.split(",")]
-        if args.paginas else list(range(total_pags))
-    )
-    indices = [i for i in indices if 0 <= i < total_pags]
+        indices = (
+            [int(p.strip()) - 1 for p in args.paginas.split(",")]
+            if args.paginas else list(range(total_pags))
+        )
+        indices = [i for i in indices if 0 <= i < total_pags]
 
-    tiles_str = f"{args.tiles[0]}×{args.tiles[1]}" if args.tiles else "auto"
-    print(f"\n📐 PoC Cubicación AI v5  [{MODELO}]")
-    print(f"   {ruta.name}  |  págs {[i+1 for i in indices]}  |  {args.dpi}DPI  |  tiles={tiles_str}\n")
+        tiles_str = f"{args.tiles[0]}×{args.tiles[1]}" if args.tiles else "auto"
+        print(f"\n📐 PoC Cubicación AI v5  [{MODELO}]")
+        print(f"   {ruta.name}  |  págs {[i+1 for i in indices]}  |  {args.dpi}DPI  |  tiles={tiles_str}\n")
 
-    client = _make_client()
-    resultados = []
-    schedules: dict[int, dict] = {}
+        client = _make_client()
+        resultados = []
+        schedules: dict[int, dict] = {}
 
-    for idx in indices:
-        try:
-            res, sched = procesar_pagina(client, ruta, idx, total_pags, args.dpi, args.tiles)
-            resultados.append(res)
-            schedules[idx + 1] = sched
-        except anthropic.APIError as e:
-            print(f"    ERROR API: {e}")
-            resultados.append({"error": str(e), "_pagina": idx + 1})
-        except Exception as e:
-            print(f"    ERROR: {e}")
-            resultados.append({"error": str(e), "_pagina": idx + 1})
+        for idx in indices:
+            try:
+                res, sched = procesar_pagina(client, ruta, idx, total_pags, args.dpi, args.tiles)
+                resultados.append(res)
+                schedules[idx + 1] = sched
+            except anthropic.APIError as e:
+                print(f"    ERROR API: {e}")
+                resultados.append({"error": str(e), "_pagina": idx + 1})
+            except Exception as e:
+                print(f"    ERROR: {e}")
+                resultados.append({"error": str(e), "_pagina": idx + 1})
 
     # Reattribution opcional ANTES del resumen para que los Δ reflejen el resultado final
     if args.reattribute:

@@ -130,7 +130,12 @@ _PIQUE_ITEMS = {
     "excavacion_pique":            "4.{p}.1",
     "retiro_excavacion_pique":     "4.{p}.2",
     "montaje_liner_pique":         "4.{p}.3",
+    "refuerzo_losa_anillo_fondo":  "4.{p}.4",
+    "construccion_dren_pique":     "4.{p}.5",
+    "terminaciones_pique":         "4.{p}.6",
+    "cobertura_pique":             "4.{p}.7",
     "montaje_escalas_plataformas": "4.{p}.8",
+    "refuerzo_apertura_pique":     "4.{p}.9",
     # montaje_estructura_cables: solo P1 y P9 (ítem .13) — manejado en _build_qty_map
     # brocal_definitivo: P1/P9 → .15, P2-8 → .14 — manejado en _build_qty_map
 }
@@ -1187,6 +1192,11 @@ def exportar_licitacion(
 
     _build_analisis_sheet(wb, cubicacion)
     _build_memoria_calculo_sheet(wb, cubicacion, resultado)
+
+    # Forzar a Excel/LibreOffice a recalcular todas las fórmulas al abrir
+    # (Resumen Oferta depende de cadenas largas de fórmulas; sin esto, valor cacheado=0)
+    if wb.calculation is not None:
+        wb.calculation.fullCalcOnLoad = True
 
     wb.save(ruta_out)
     return ruta_out

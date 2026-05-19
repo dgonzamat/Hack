@@ -746,6 +746,8 @@ def main() -> None:
                         help="YAML con secciones transversales del proyecto (ej: secciones_civiles.yaml)")
     parser.add_argument("--reattribute", action="store_true",
                         help="Aplicar reattribution post-hoc usando schedule")
+    parser.add_argument("--template", default=None, metavar="PATH",
+                        help="Template .xlsx del mandante para modo --tipo electrico")
     args = parser.parse_args()
 
     # ── Modo --from-json: carga recintos pre-extraídos, omite PDF y API ──────────
@@ -884,7 +886,8 @@ def main() -> None:
             # Modo electrico: usar formato licitacion en lugar del Excel estándar
             try:
                 from excel_licitacion import exportar_licitacion
-                ruta_xlsx = exportar_licitacion(cubicacion, primera, args.excel)
+                ruta_xlsx = exportar_licitacion(cubicacion, primera, args.excel,
+                                                template=args.template)
                 print(f"  Excel licitación guardado: {ruta_xlsx}\n")
             except Exception as e:
                 print(f"  WARN: excel_licitacion falló ({e}), usando formato estándar")

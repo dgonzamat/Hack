@@ -2,6 +2,10 @@
 
 Principios de desarrollo y contexto técnico para sesiones de Claude Code.
 
+**IMPORTANTE:** Este repositorio es un *framework* reutilizable, no un proyecto
+específico. Los datos de proyectos reales (JSONs con medidas, templates Excel del
+mandante) viven fuera del repo. Nunca hardcodear paths de archivos del cliente.
+
 ---
 
 ## Principios de desarrollo (Karpathy)
@@ -47,6 +51,7 @@ Ejemplo: bug `_VIAL_CATS` — "REVESTIMIENTO TUNEL" matcheaba `\bTUNEL\b` antes 
 - `ANTHROPIC_API_KEY` → variable de entorno, nunca hardcodeado
 - Nunca loguear contenido de PDFs (pueden tener datos de licitaciones confidenciales)
 - `_training_candidates.log` excluido de git — puede contener datos de proyectos privados
+- Nunca agregar paths de archivos del cliente al código fuente
 
 **Restricciones absolutas (anti-alucinación):**
 - Nunca inventar comportamiento de librerías (sklearn, openpyxl, PyMuPDF)
@@ -58,6 +63,7 @@ Ejemplo: bug `_VIAL_CATS` — "REVESTIMIENTO TUNEL" matcheaba `\bTUNEL\b` antes 
 - No asumir área por defecto si `area_m2 is None` — omitir + listar en Trazabilidad
 - No cubica áreas comunes por defecto (usar `--incluir-comunes` si se necesita)
 - No commitear `_training_candidates.log` (está en .gitignore)
+- No hardcodear paths de templates del cliente en el código
 
 ---
 
@@ -67,8 +73,10 @@ Extrae recintos e infraestructura desde planos PDF (via Claude API + PyMuPDF),
 clasifica cada elemento con ML (TF-IDF + LogisticRegression) y genera
 una cubicación con cantidades por partida + presupuesto en CLP.
 
-**Foco principal:** proyectos viales/infraestructura chilena (calzadas, túneles,
-puentes, alcantarillas, señalética, etc.). No es un cubicador arquitectónico genérico.
+**Tres modos de uso:**
+1. `--tipo arquitectonico` — recintos, puertas, ventanas, pintura, piso, cielo
+2. `--tipo vial` — calzada, puente, túnel, alcantarilla, señalética, etc.
+3. `--tipo electrico` — piques circulares + tramos de túnel liner para LAT subterránea
 
 ---
 
@@ -76,14 +84,47 @@ puentes, alcantarillas, señalética, etc.). No es un cubicador arquitectónico 
 
 ```
 poc_cubicacion.py       # CLI principal — extrae recintos desde PDF via Claude API
-cubicador.py            # Pipeline: clasificar_recinto() → cubicar() / cubicar_vial()
+cubicador.py            # Pipeline: clasificar_recinto() → cubicar() / cubicar_vial() / cubicar_electrico()
 train_clasificador.py   # Entrena TF-IDF + LR → clasificador_recintos.pkl
 presupuesto.py          # Cantidades × precios_cl.csv → subtotal + GG&U + IVA
-excel.py                # Export openpyxl 4 hojas (Resumen/Recintos/Cubicación/Trazabilidad)
+excel.py                # Export arquitectónico — 4 hojas (Resumen/Recintos/Cubicación/Trazabilidad)
+excel_licitacion.py     # Export formato licitación — rellena template .xlsx del mandante
 secciones_civiles.yaml  # Dimensiones por defecto por categoría vial (puente, túnel, etc.)
-precios_cl.csv          # Precios indicativos Chile (ONDAC 2026Q1)
+precios_cl.csv          # Precios indicativos arquitectura Chile (ONDAC 2026Q1)
+precios_electrico.csv   # Precios indicativos infraestructura eléctrica Chile (ONDAC 2026Q1)
+ejemplo_recintos.json   # Ejemplo de JSON de entrada — proyecto arquitectónico
+ejemplo_electrico.json  # Ejemplo de JSON de entrada — proyecto eléctrico (piques + tramos)
 test_cubicador.py       # pytest — 187+ tests
 ```
+
+---
+
+## Modo eléctrico — cubicar_electrico()
+
+Para proyectos de túnel liner con piques circulares (LAT subterránea, túneles de servicio):
+
+```bash
+python poc_cubicacion.py --from-json mi_proyecto.json \
+    --tipo electrico \
+    --template cuadro_precios_mandante.xlsx \
+    --excel salida.xlsx
+```
+
+**Estructura del JSON de entrada** (`ejemplo_electrico.json` como referencia):
+- `piques[]` — lista con `id`, `profundidad_m`, `km_aprox`, `notas`
+- `tramos_tunel[]` — lista con `id`, `entre_piques`, `longitud_m`, `km_inicio`, `km_fin`
+- El template `.xlsx` del mandante se pasa con `--template` (nunca hardcodeado)
+
+**Constantes geométricas** (valores típicos para Ø4m/Ø2.21m):
+- Pique: `AREA_PIQUE_M2 = π × r²` donde `r = diametro_pique_m / 2`
+- Túnel: `AREA_TUNEL_M2 = π × r²` donde `r = diametro_tunel_m / 2`
+- Radier: `RADIER_VOL_PER_M = diametro_tunel_m × espesor_radier_m`
+
+**Mapeo ítems → Excel** (`excel_licitacion.py`):
+- Piques: `4.{p}.1` excavación, `.2` retiro, `.3` liner, `.8` escalas, `.14`/`.15` brocal
+- Túneles: `5.{t}.1` excavación, `.2` retiro, `.3` liner, `.7` radier
+- Brocal definitivo: piques extremos → ítem N+1; intermedios → ítem N
+  (depende del template del mandante — revisar sub-ítems antes de asumir)
 
 ---
 
@@ -114,12 +155,11 @@ plano PDF → cubicador.py → _training_candidates.log
 
 **Error analysis — proceso para atacar FP/FN:**
 1. `python train_clasificador.py --eval` imprime confusion matrix por categoría
-2. Identificar la categoría con mayor % error total (ver fila en confusion matrix)
+2. Identificar la categoría con mayor % error total
 3. Inspeccionar ejemplos reales de esa categoría en `_training_candidates.log`
 4. Agregar solo ejemplos de planos reales, no sintéticos
 
 **Umbral de alerta:** accuracy CV < 92% → no mergear, investigar causa raíz.
-(92% = ~2pp de margen bajo el baseline — cubre varianza típica de CV sin enmascarar regresiones reales)
 
 ---
 
@@ -138,8 +178,7 @@ El orden importa — específicos antes que genéricos:
 | `alcantarilla` | longitud × tipo (cajón/circular/metálica) |
 | `señalizacion` | conteo unidades |
 
-**Regla crítica:** `_VIAL_OVERRIDE` intercepta términos viales antes del ML
-para evitar clasificaciones erróneas en recintos arquitectónicos.
+**Regla crítica:** `_VIAL_OVERRIDE` intercepta términos viales antes del ML.
 
 ---
 
@@ -171,3 +210,4 @@ make all            # train + test + lint
 - **GitHub Actions** (`.github/workflows/train_model.yml`): reentrenamiento automático
   al hacer push de cambios en `train_clasificador.py` o cada domingo 3am UTC.
 - **GitGuardian**: check de secretos en cada PR.
+- **ruff**: solo archivos `.py` — `pyproject.toml` excluye `.json`/`.yaml`/`.csv`.

@@ -57,9 +57,19 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     add(["LOGIA", "LOGIA DE SERVICIO", "LOGIA SERVICIO",
          "LAVANDERIA", "LAVANDERÍA", "LAVAND.", "LAVAD.",
+         "LAVADERO", "LAVADO", "PIEZA LAVADO",
          "ZONA DE LAVADO", "ZONA LAVADO", "AREA DE LAVADO",
          "CUARTO LAVADO", "PIEZA DE LAVADO", "PATIO LAVADO",
          "CUARTO DE SERVICIO HUMEDO"], "humedo")
+
+    # Salas mecánicas con instalaciones hidráulicas (calderas, bombas, ACS)
+    # NB: "SALA MAQUINAS EDIFICIO" se mantiene como común (ascensores) en bloque común
+    add(["SALA DE MAQUINAS HIDRAULICA", "CUARTO DE MAQUINAS HIDRAULICAS",
+         "SALA CALDERAS", "SALA CALDERA", "CUARTO CALDERAS", "CUARTO CALDERA",
+         "SALA DE CALEFACCION", "CUARTO CALEFACCION",
+         "SALA COMPRESORES PISCINA", "CUARTO COMPRESORES PISCINA",
+         "SALA ACS", "CUARTO ACS", "SALA CLIMATIZACION HIDRONICA",
+         "CUARTO TERMOTANQUES", "SALA ESTANQUES AGUA"], "humedo")
 
     add(["SH", "SSHH", "S.H.", "S.S.H.H.", "SS.HH.", "SS HH",
          "SERV HIG", "SERVICIO HIGIENICO", "SERVICIO HIGIÉNICO",
@@ -122,6 +132,7 @@ def _generar_dataset() -> list[tuple[str, str]]:
     add(["TERRAZA", "BALCON", "BALCÓN", "LOGGIA",
          "PATIO", "PATIO EXTERIOR", "PATIO INTERIOR", "PATIO DE SERVICIO",
          "JARDIN", "JARDÍN", "JARDIN FRONTAL", "JARDIN TRASERO",
+         "ANTEJARDÍN", "ANTEJARDIN", "JARDIN ACCESO", "JARDIN INGRESO",
          "DECK", "TERRAZA DECK", "PATIO DECK",
          "QUINCHO", "PARRILLA", "ASADOR", "SOLARIUM",
          "PISCINA", "AREA PISCINA", "TERRAZA PISCINA",
@@ -564,6 +575,66 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SEDIMENTADOR", "TRAMPA DE SEDIMENTOS",
          "OBRA DE TOMA", "OBRA DE ENTREGA"], "vial")
 
+    # ── ELÉCTRICO (infraestructura LAT subterránea — piques + túnel liner) ──────
+    # Piques circulares de acceso (Ø4000mm interior, Ø4200mm fundación)
+    add(["PIQUE 1", "PIQUE 2", "PIQUE 3", "PIQUE 4", "PIQUE 5",
+         "PIQUE 6", "PIQUE 7", "PIQUE 8", "PIQUE 9",
+         "PIQUE SS VITACURA", "PIQUE SS PROVIDENCIA",
+         "PIQUE TIPICO", "PIQUE TÍPICO",
+         "PIQUE CIRCULAR", "PIQUE CIRCULAR O4000",
+         "PIQUE ACCESO", "PIQUE ZONA TABLEROS",
+         "PIQUE LAT", "PIQUE ELECTRICO", "PIQUE ELÉCTRICO",
+         "POZO ACCESO ELECTRICO", "SHAFT ELECTRICO"], "electrico")
+
+    # Túnel liner (Ø2210mm interior, pipe jacking / TBM)
+    add(["TUNEL LINER", "TUNNEL LINER", "LINER TUNEL",
+         "LINER O2210", "LINER 2210", "LINER Ø2210",
+         "SECCION LINER", "SECCION TUNEL LINER",
+         "TUNEL LAT", "GALERIA ELECTRICA", "GALERÍA ELÉCTRICA",
+         "GALERIA LAT", "DUCTO SUBTERRANEO LAT",
+         "TRAMO TUNEL 1", "TRAMO TUNEL 2", "TRAMO LINER",
+         "TRAMO 1 P1-P2", "TRAMO 2 P2-P3"], "electrico")
+
+    # Plataformas y equipamiento interno de piques
+    add(["PLATAFORMA DE DESCANSO", "PLATAFORMA TECNICA", "PLATAFORMA ELECTRICA",
+         "PLATAFORMA 1", "PLATAFORMA 2", "PLATAFORMA 3",
+         "PLATAFORMA 4", "PLATAFORMA 5", "PLATAFORMA 6",
+         "PLATAFORMA 7", "PLATAFORMA 8",
+         "ESCALERA GATERA", "ESCALA GATERA", "ESCALA VERTICAL",
+         "ANILLO INFERIOR", "ANILLO SUPERIOR", "ANILLO ESTRUCTURAL",
+         "ANILLO LINER PIQUE"], "electrico")
+
+    # Salas y equipos eléctricos en piques (SS/EE y sala de control)
+    add(["SALA TABLEROS", "ZONA TABLEROS", "ZONA TDF",
+         "TDF 1", "TDF 2", "TDF 3", "TDF VIT", "TDF PROV",
+         "SALA TDF", "TABLERO DE DISTRIBUCION",
+         "SALA VENTILACION", "CUARTO VENTILACION",
+         "FAN PIQUE", "VENTILADOR TUNEL",
+         "SALA BOMBAS PIQUE", "PLANTA ELEVADORA PIQUE",
+         "SUBESTACION VITACURA", "SUBESTACION PROVIDENCIA",
+         "SS VITACURA", "SS PROVIDENCIA",
+         "SALA SER LAT", "SALA CONTROL LAT"], "electrico")
+
+    # Ventilación de galería eléctrica (jet fans + extractores)
+    # IDs FAN1..FAN23 vienen del proyecto Vitacura (STM38109 Tabla 4.2)
+    add(["JET FAN", "VENTILADOR JET FAN", "FAN TUNEL",
+         "VENTILADOR IMPULSO GALERIA LAT", "JET FAN GALERIA",
+         "EXTRACTOR GALERIA LAT", "VENTILADOR EXTRACTOR TUNEL CABLES",
+         "EQUIPO VENTILACION GALERIA LAT", "SISTEMA VENTILACION LAT",
+         "FAN1", "FAN5", "FAN12", "FAN23",
+         "FAN.01", "FAN.12", "FAN.23"], "electrico")
+
+    # Elementos estructurales y de obra civil propios del sistema
+    add(["BROCAL DEFINITIVO", "BROCAL TEMPORAL", "BROCAL PIQUE",
+         "RADIER PIQUE", "RADIER TUNEL LINER",
+         "LOSA ANILLO FONDO", "REFUERZO APERTURA PIQUE",
+         "DREN PIQUE", "CAMARA CONEXION AT",
+         "CAMARA CONEXION ALTA TENSION",
+         "COBERTURA PIQUE", "TAPA PIQUE",
+         "ESTRUCTURA SOPORTE CABLES LAT",
+         "CABLE AT SUBTERRANEO", "CABLE 110KV SUBTERRANEO",
+         "LAT 2X110KV", "LINEA 110KV SUBTERRANEA"], "electrico")
+
     # ── Geotecnia de obra vial — sondajes y tratamientos (INN / MOP) ─────────
     add(["MICROPILOTE", "MICROPILOTES CIMENTACION", "MICROPILOTES CONTENCION",
          "PILOTE PERFORADO", "PILOTE CENTRIFUGADO", "PILOTE BARRENADO",
@@ -620,7 +691,7 @@ def main() -> None:
     X = [nombre for nombre, _ in datos]
     y = [cat for _, cat in datos]
 
-    clases = ["comun", "exterior", "humedo", "seco", "vial"]
+    clases = ["comun", "electrico", "exterior", "humedo", "seco", "vial"]
 
     print(f"Dataset: {len(datos)} ejemplos")
     for cat in clases:

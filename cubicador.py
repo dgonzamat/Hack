@@ -1212,12 +1212,16 @@ def cubicar_electrico(
                 "montaje_escalas_plataformas": 1,
                 "brocal_definitivo":           1,
             }
+            if pid in (1, 9):  # SS Vitacura (P1) y SS Providencia (P9)
+                piques_qty[pid]["montaje_estructura_cables"] = 1
             nota = f"Pique {pid} (Ø4.0m × {prof:.1f}m prof.)"
             _add("excavacion_pique", "Excavación pique", "m3", excav, nota)
             _add("retiro_excavacion_pique", "Retiro excavación y transporte botadero", "m3", excav, nota)
             _add("montaje_liner_pique", "Montaje liner pique Ø4.0m (sello+mortero)", "m", prof, nota)
             _add("montaje_escalas_plataformas", "Montaje escalas y plataformas (STM aporta)", "gl", 1, f"Pique {pid}")
             _add("brocal_definitivo", "Construcción brocal definitivo", "gl", 1, f"Pique {pid}")
+            if pid in (1, 9):
+                _add("montaje_estructura_cables", "Montaje estructura soporte cables SS", "gl", 1, f"Pique {pid} (SS)")
     else:
         # ── Modo legacy: un pique desde recintos (fallback) ───────────────────
         for rec in resultado.get("recintos", []):
@@ -1249,17 +1253,22 @@ def cubicar_electrico(
             lng = float(tr["longitud_m"])
             excav = AREA_TUNEL_M2 * lng
             radier = RADIER_VOL_PER_M * lng
+            # LAT 2×110kV = 2 circuitos × 3 fases = 6 cables por tramo
+            N_CABLES_LAT = 6
+            cables_ml = round(N_CABLES_LAT * lng, 1)
             tramos_qty[tid] = {
                 "excavacion_tunel":       round(excav, 2),
                 "retiro_excavacion_tunel": round(excav, 2),
                 "montaje_liner_tunel":    round(lng, 1),
                 "radier_tunel":           round(radier, 2),
+                "instalacion_cables":     cables_ml,
             }
             nota = f"Tramo {tid} P{tr['entre_piques']} ({lng:.0f}m)"
             _add("excavacion_tunel", "Excavación túnel Ø2.21m", "m3", excav, nota)
             _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", excav, nota)
             _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m (sello+mortero)", "m", lng, nota)
             _add("radier_tunel", "Radier hormigón H30 e=15cm", "m3", radier, nota)
+            _add("instalacion_cables", "Instalación cables LAT 2×110kV (6 cables)", "ml", cables_ml, nota)
     else:
         # ── Modo legacy: un tramo desde recintos ──────────────────────────────
         for rec in resultado.get("recintos", []):

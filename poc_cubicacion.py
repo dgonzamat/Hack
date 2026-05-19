@@ -855,8 +855,18 @@ def main() -> None:
         # Usar primera lámina para Excel (multi-página: agregar páginas extra como hojas adicionales en v6)
         primera = next((r for r in resultados if "error" not in r), None)
         if not primera:
-            print("  ERROR: ninguna lámina procesada exitosamente")
-            return
+            # Modo eléctrico puro: sin resultados de láminas pero con datos estructurados
+            if args.tipo == "electrico" and (datos.get("piques") or datos.get("tramos_tunel")):
+                dp = datos.get("datos_proyecto", {})
+                primera = {
+                    "_pagina": 1,
+                    "lamina": {"titulo": dp.get("titulo", "Proyecto eléctrico"),
+                               "tipo": "infraestructura_electrica"},
+                    "recintos": [],
+                }
+            else:
+                print("  ERROR: ninguna lámina procesada exitosamente")
+                return
 
         pag = primera.get("_pagina")
         sched = schedules.get(pag)
@@ -883,6 +893,9 @@ def main() -> None:
                 piques=_piques_data,
                 tramos_tunel=_tramos_data,
             )
+            # Pasar datos_proyecto al cubicacion para el Excel (supuesto n_tuneles, UF, etc.)
+            if args.from_json:
+                cubicacion["datos_proyecto"] = datos.get("datos_proyecto", {})
             # Modo electrico: usar formato licitacion en lugar del Excel estándar
             try:
                 from excel_licitacion import exportar_licitacion

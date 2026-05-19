@@ -3,6 +3,7 @@ Genera Excel en formato Cuadro de Precios de Licitacion (estructura STM Vitacura
 Toma el template original, pre-llena cantidades calculadas y agrega hoja de analisis.
 """
 
+import csv
 import math
 from pathlib import Path
 import openpyxl
@@ -13,12 +14,60 @@ from openpyxl.utils import get_column_letter
 UF_CLP = 38_500
 
 # ── Fills ─────────────────────────────────────────────────────────────────────
-_FILL_HEADER   = PatternFill("solid", fgColor="1F4E79")   # azul oscuro
-_FILL_SECTION  = PatternFill("solid", fgColor="BDD7EE")   # azul claro (sección padre)
-_FILL_CALC     = PatternFill("solid", fgColor="E2EFDA")   # verde claro (calculado por nosotros)
-_FILL_ORIGINAL = PatternFill("solid", fgColor="FFF2CC")   # amarillo pálido (ya en template)
-_FILL_PRICE    = PatternFill("solid", fgColor="FFFF00")   # amarillo (contratista llena precio)
-_FILL_WARN     = PatternFill("solid", fgColor="FCE4D6")   # salmón (no cubicado)
+_FILL_HEADER    = PatternFill("solid", fgColor="1F4E79")  # azul oscuro
+_FILL_SECTION   = PatternFill("solid", fgColor="BDD7EE")  # azul claro (sección padre)
+_FILL_CALC      = PatternFill("solid", fgColor="E2EFDA")  # verde claro (cantidad calculada)
+_FILL_ORIGINAL  = PatternFill("solid", fgColor="FFF2CC")  # amarillo pálido (ya en template)
+_FILL_PRICE     = PatternFill("solid", fgColor="FFFF00")  # amarillo (contratista llena precio)
+_FILL_PRICE_REF = PatternFill("solid", fgColor="FCE4D6")  # salmón (precio referencial ONDAC)
+_FILL_WARN      = PatternFill("solid", fgColor="FCE4D6")  # salmón (no cubicado)
+
+# ── Mapeo sub-ítem → clave de precio en CSV ───────────────────────────────────
+# Clave: último número del ítem (ej: "1" para 4.x.1, "7" para 5.x.7)
+# Sección 4 (piques)
+_PRECIO_PIQUE = {
+    "1":  "excavacion_pique",
+    "2":  "retiro_excavacion_pique",
+    "3":  "montaje_liner_pique",
+    "8":  "montaje_escalas_plataformas",
+    "14": "brocal_definitivo",
+    "15": "brocal_definitivo",
+}
+# Sección 5 (túneles)
+_PRECIO_TUNEL = {
+    "1": "excavacion_tunel",
+    "2": "retiro_excavacion_tunel",
+    "3": "montaje_liner_tunel",
+    "7": "radier_tunel",
+}
+
+
+def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
+    """Carga precios desde CSV y los convierte a UF. Ignora líneas comentadas (#)."""
+    precios: dict[str, float] = {}
+    path = Path(csv_path)
+    if not path.exists():
+        return precios
+    with open(path, encoding="utf-8") as f:
+        for row in csv.DictReader(filter(lambda l: not l.startswith("#"), f)):
+            try:
+                precios[row["partida"].strip()] = round(
+                    float(row["precio_clp"]) / UF_CLP, 4
+                )
+            except (KeyError, ValueError):
+                pass
+    return precios
+
+
+def _precio_para_item(num: str, precios_uf: dict[str, float]) -> float | None:
+    """Devuelve precio UF para un ítem numerado tipo '4.3.1' o '5.2.7', o None."""
+    parts = num.split(".")
+    if len(parts) != 3:
+        return None
+    seccion, _, sub = parts
+    lookup = _PRECIO_PIQUE if seccion == "4" else (_PRECIO_TUNEL if seccion == "5" else {})
+    key = lookup.get(sub)
+    return precios_uf.get(key) if key else None
 
 _FONT_HEADER = Font(bold=True, color="FFFFFF", size=10)
 _FONT_BOLD   = Font(bold=True, size=9)
@@ -112,9 +161,14 @@ def _build_qty_map(cubicacion: dict) -> dict[str, float]:
     return qty
 
 
-def _fill_detalle_sheet(ws, qty_map: dict[str, float]) -> dict[str, int]:
+def _fill_detalle_sheet(
+    ws,
+    qty_map: dict[str, float],
+    precios_uf: dict[str, float] | None = None,
+) -> dict[str, int]:
     """
     Recorre la hoja 'A) Detalle Costo Directo', aplica colores y fórmulas.
+    Si precios_uf está disponible, rellena columna E con precio referencial (salmón).
     Devuelve {item_num: row_index} para referencia.
     """
     item_rows: dict[str, int] = {}
@@ -138,13 +192,20 @@ def _fill_detalle_sheet(ws, qty_map: dict[str, float]) -> dict[str, int]:
                     c.fill = _FILL_SECTION
             continue
 
-        qty_cell  = ws.cell(row=row_idx, column=4)   # D
-        price_cell = ws.cell(row=row_idx, column=5)  # E
-        total_cell = ws.cell(row=row_idx, column=6)  # F
+        qty_cell   = ws.cell(row=row_idx, column=4)  # D — cantidad
+        price_cell = ws.cell(row=row_idx, column=5)  # E — precio unitario UF
+        total_cell = ws.cell(row=row_idx, column=6)  # F — total UF
 
-        # Precio: siempre amarillo (contractor fills)
-        price_cell.fill = _FILL_PRICE
-        price_cell.font = _FONT_NORM
+        # Precio: referencial si tenemos CSV, amarillo (vacío) si no
+        precio_ref = _precio_para_item(num, precios_uf) if precios_uf else None
+        if precio_ref is not None and price_cell.value in (None, 0, ""):
+            price_cell.value = precio_ref
+            price_cell.fill = _FILL_PRICE_REF   # salmón = referencial ONDAC
+            price_cell.font = _FONT_NORM
+            price_cell.number_format = "#,##0.0000"
+        else:
+            price_cell.fill = _FILL_PRICE       # amarillo = contratista llena
+            price_cell.font = _FONT_NORM
 
         # Cantidad: calculada por nosotros o ya estaba en el template
         if num in qty_map:
@@ -438,12 +499,14 @@ def exportar_licitacion(
     resultado: dict,
     ruta_out: str | Path,
     template: str | Path | None = None,
+    precios_csv: str | Path | None = None,
 ) -> Path:
     """
-    Genera Excel en formato licitación con cantidades pre-calculadas.
+    Genera Excel en formato licitación con cantidades y precios referenciales.
 
-    template: path al .xlsx del mandante. Si no se indica (o no existe),
-              genera un workbook mínimo con las mismas hojas.
+    template:    path al .xlsx del mandante (opcional).
+    precios_csv: path al CSV de precios (default: precios_electrico.csv junto al módulo).
+                 Precios en CLP → se convierten a UF. Se marcan en salmón (referenciales).
     Devuelve Path del archivo generado.
     """
     ruta_out = Path(ruta_out)
@@ -453,16 +516,32 @@ def exportar_licitacion(
     else:
         if template is not None:
             print(f"  WARN: template '{template}' no encontrado — generando workbook vacío")
-        # Sin template: crear workbook mínimo con las hojas esperadas
         wb = openpyxl.Workbook()
         wb.active.title = "Resumen Oferta"
         wb.create_sheet("A) Detalle Costo Directo")
         wb.create_sheet("B) Detalle C. Ind., GG y Utilid")
 
+    # Cargar precios referenciales
+    if precios_csv is None:
+        precios_csv = Path(__file__).parent / "precios_electrico.csv"
+    precios_uf = cargar_precios_uf(precios_csv)
+
     qty_map = _build_qty_map(cubicacion)
 
     ws_det = wb["A) Detalle Costo Directo"]
-    _fill_detalle_sheet(ws_det, qty_map)
+    _fill_detalle_sheet(ws_det, qty_map, precios_uf=precios_uf)
+
+    # Leyenda de colores en Resumen Oferta
+    ws_res = wb["Resumen Oferta"]
+    leyenda_row = ws_res.max_row + 2
+    for col, (texto, fill) in enumerate([
+        ("Verde: cantidad calculada por modelo",       _FILL_CALC),
+        ("Salmón: precio referencial ONDAC 2026 (UF)", _FILL_PRICE_REF),
+        ("Amarillo: completar con precio oferta",      _FILL_PRICE),
+    ], start=1):
+        c = ws_res.cell(row=leyenda_row, column=col, value=texto)
+        c.fill = fill
+        c.font = Font(size=8, italic=True)
 
     _build_analisis_sheet(wb, cubicacion)
 

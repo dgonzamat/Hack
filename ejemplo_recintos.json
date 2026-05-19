@@ -1,0 +1,76 @@
+{
+  "_instrucciones": "Completa este JSON con los recintos extraídos del plano. Luego ejecuta: python poc_cubicacion.py --from-json ejemplo_recintos.json --excel salida.xlsx",
+  "resultados": [
+    {
+      "_pagina": 1,
+      "lamina": {
+        "titulo": "PLANTA PRIMER PISO",
+        "escala": "1:50",
+        "tipo": "planta_arquitectonica"
+      },
+      "tiene_cotas": true,
+      "tiene_escala_grafica": false,
+      "calidad_plano": "alta",
+      "observaciones": "",
+      "_tiles_procesados": 1,
+      "_tokens_entrada": 0,
+      "_tokens_salida": 0,
+      "recintos": [
+        {
+          "nombre": "DORMITORIO PRINCIPAL",
+          "departamento": "DEPTO A1",
+          "area_m2": 12.5,
+          "confianza": 0.95,
+          "dimensiones_estimadas": {"largo_m": 4.5, "ancho_m": 2.8}
+        },
+        {
+          "nombre": "LIVING COMEDOR",
+          "departamento": "DEPTO A1",
+          "area_m2": 22.8,
+          "confianza": 0.92,
+          "dimensiones_estimadas": null
+        },
+        {
+          "nombre": "COCINA",
+          "departamento": "DEPTO A1",
+          "area_m2": 8.4,
+          "confianza": 0.90,
+          "dimensiones_estimadas": {"largo_m": 3.5, "ancho_m": 2.4}
+        },
+        {
+          "nombre": "BAÑO",
+          "departamento": "DEPTO A1",
+          "area_m2": 4.2,
+          "confianza": 0.88,
+          "dimensiones_estimadas": null
+        },
+        {
+          "nombre": "DORMITORIO 2",
+          "departamento": "DEPTO A1",
+          "area_m2": 10.1,
+          "confianza": 0.91,
+          "dimensiones_estimadas": null
+        }
+      ],
+      "muros": {
+        "exterior_ml": 0,
+        "interior_ml": 0
+      },
+      "vanos": {
+        "puertas": [
+          {"tipo": "puerta simple 90cm", "cantidad": 3}
+        ],
+        "ventanas": [
+          {"tipo": "ventana corredera 120cm", "cantidad": 2}
+        ]
+      }
+    }
+  ],
+  "schedules": {
+    "1": {
+      "tiene_tabla": false,
+      "departamentos": [],
+      "nota": "sin tabla de áreas en plano"
+    }
+  }
+}

@@ -54,6 +54,11 @@ Ejemplo: bug `_VIAL_CATS` — "REVESTIMIENTO TUNEL" matcheaba `\bTUNEL\b` antes 
 - Nunca afirmar que tests pasaron si no se ejecutaron en esta sesión
 - Si hay incertidumbre sobre una fórmula → citar norma MOP/EFE o preguntar
 
+**Anti-patrones clave:**
+- No asumir área por defecto si `area_m2 is None` — omitir + listar en Trazabilidad
+- No cubica áreas comunes por defecto (usar `--incluir-comunes` si se necesita)
+- No commitear `_training_candidates.log` (está en .gitignore)
+
 ---
 
 ## Qué hace este proyecto
@@ -82,15 +87,14 @@ test_cubicador.py       # pytest — 187+ tests
 
 ---
 
-## Clasificador ML
+## Clasificador ML y experimentación
 
 - **Modelo:** TF-IDF `FeatureUnion(char_wb(2,6) + word(1,2))` + `LogisticRegression(C=10)`
 - **Dataset:** ~1217 ejemplos sintéticos — 680 vial (56%), resto húmedo/seco/exterior/común
-- **Accuracy CV:** 94.0%
+- **Accuracy CV baseline:** 94.0% — nunca reportar mejora sin comparar con `make train-eval`
 - **PKL:** `clasificador_recintos.pkl` (versionado en git, auto-actualizado por CI)
 - **Umbral confianza:** `_CONFIANZA_ML_MIN = 0.60` — bajo este umbral → `fue_heuristica=True`
 - **Active learning:** clasificaciones con proba < 0.75 se loguean en `_training_candidates.log`
-  para revisión humana y posterior incorporación al dataset
 
 **Flujo de mejora continua:**
 ```
@@ -103,18 +107,19 @@ plano PDF → cubicador.py → _training_candidates.log
                         clasificador_recintos.pkl actualizado
 ```
 
----
+**Antes de cambiar el dataset:**
+1. Formular hipótesis: *"agrego X ejemplos de categoría Y porque el modelo confunde Z"*
+2. Verificar char n-gram overlap: `python -c "from train_clasificador import _norm; print(_norm('TU EJEMPLO'))"` y buscar substrings en el vocabulario vial — si hay overlap de 4+ chars, causará regresión
+3. Correr `make train-eval` antes y después — mergear solo si accuracy no retrocede (≥ 94.0%) o hay mejora > 0.2pp
 
-## Comandos frecuentes
+**Error analysis — proceso para atacar FP/FN:**
+1. `python train_clasificador.py --eval` imprime confusion matrix por categoría
+2. Identificar la categoría con mayor % error total (ver fila en confusion matrix)
+3. Inspeccionar ejemplos reales de esa categoría en `_training_candidates.log`
+4. Agregar solo ejemplos de planos reales, no sintéticos
 
-```bash
-make train          # reentrena + guarda pkl
-make train-eval     # accuracy CV sin guardar pkl
-make train-tune     # GridSearchCV (lento ~5min)
-make test           # pytest test_cubicador.py -q
-make lint           # ruff + codespell
-make all            # train + test + lint
-```
+**Umbral de alerta:** accuracy CV < 92% → no mergear, investigar causa raíz.
+(92% = ~2pp de margen bajo el baseline — cubre varianza típica de CV sin enmascarar regresiones reales)
 
 ---
 
@@ -138,6 +143,19 @@ para evitar clasificaciones erróneas en recintos arquitectónicos.
 
 ---
 
+## Comandos frecuentes
+
+```bash
+make train          # reentrena + guarda pkl
+make train-eval     # accuracy CV sin guardar pkl
+make train-tune     # GridSearchCV (lento ~5min)
+make test           # pytest test_cubicador.py -q
+make lint           # ruff + codespell
+make all            # train + test + lint
+```
+
+---
+
 ## Normativa de referencia (Chile)
 
 - Manual de Carreteras MOP Vol.3 (terraplenes/cortes), Vol.5 (puentes), Vol.8 (túneles)
@@ -153,34 +171,3 @@ para evitar clasificaciones erróneas en recintos arquitectónicos.
 - **GitHub Actions** (`.github/workflows/train_model.yml`): reentrenamiento automático
   al hacer push de cambios en `train_clasificador.py` o cada domingo 3am UTC.
 - **GitGuardian**: check de secretos en cada PR.
-
----
-
-## ML — Reglas de experimentación
-
-**Baseline obligatorio:** el modelo actual es 94.0% CV accuracy, 1217 ejemplos, 680 vial.
-Nunca reportar mejora sin comparar contra este número con `make train-eval`.
-
-**Antes de cambiar el dataset:**
-1. Formular hipótesis explícita: *"agrego X ejemplos de categoría Y porque el modelo confunde Z"*
-2. Verificar char n-gram overlap con el vocabulario vial — si hay overlap, el ejemplo causará regresión
-3. Correr `make train-eval` antes y después — solo mergear si accuracy ≥ 94.0% o mejora medible
-
-**Error analysis — proceso para atacar FP/FN:**
-1. `python train_clasificador.py --eval` muestra confusion matrix
-2. Identificar la categoría con más errores (hoy: comun→vial 15%, seco→vial 12%)
-3. Inspeccionar ejemplos reales del `_training_candidates.log` para esa categoría
-4. Agregar solo ejemplos de planos reales, no sintéticos
-
-**Umbral de alerta:** si accuracy CV cae bajo 92% → no mergear, investigar causa raíz primero.
-
-**Nunca:** experimentar sin hipótesis, decir que el modelo mejoró sin métricas, agregar
-ejemplos sintéticos que compartan char n-grams con vial (causa regresión — PR #15).
-
----
-
-## Lo que NO hacer
-
-- No asumir área por defecto si `area_m2 is None` — omitir + listar en Trazabilidad
-- No cubica áreas comunes por defecto (usar `--incluir-comunes` si se necesita)
-- No commitear `_training_candidates.log` (está en .gitignore)

@@ -391,9 +391,9 @@ _NO_CUBICADO = [
     ("Sec. 2  Extractor Soler-Palau TGT/6-1409 (37kW)", "2 un",
      "Aporte STM: 2 extractores Ø1410mm en bocas P1 y P9. 132.000 m³/h, 200 Pa. "
      "Contratista instala. Fuente: STM38110 §3.1 + §3.14"),
-    ("Sec. 2  Jet Fan S&P TJHT/2/4-315-C (1.1kW)", "N un",
-     "Aporte STM: ventiladores impulso tunel, 43N, 6.800 m³/h. "
-     "Cantidad N pendiente confirmar desde STM38109 Tabla 4.1. Fuente: STM38110 §2"),
+    ("Sec. 2  Jet Fan S&P TJHT2/4-315-CN (0.8kW)", "23 un",
+     "Aporte STM: 23 ventiladores en tunel, 24N, 4.500 m³/h, Ø0.425m. "
+     "Fan1 DM+70m a Fan23 DM+2380m, cada 105m. Fuente: STM38109 §4.5 Tabla 4.2 REV.E 28-01-2026"),
     ("Sec. 1  Actividades Previas y Coordinación", "gl", "Suma alzada — depende de empresa"),
     ("Sec. 3  Instalación de Faenas", "gl",
      "Suma alzada. IF SS Vitacura (STM-IF-20251009): 3 etapas (Túnel Liner / TL+OOEE / OOCC+OOEE). "

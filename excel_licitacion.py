@@ -433,28 +433,27 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
 
 # ── Función principal ─────────────────────────────────────────────────────────
 
-_TEMPLATE = Path(
-    "/root/.claude/uploads/d310c843-729c-4f06-9a18-627b069f8a5a"
-    "/207f8ccf-Cuadro_de_Precios_Construcci_n_OOCC_LAT2_0_20260410.xlsx"
-)
-
-
 def exportar_licitacion(
     cubicacion: dict,
     resultado: dict,
     ruta_out: str | Path,
-    template: str | Path = _TEMPLATE,
+    template: str | Path | None = None,
 ) -> Path:
     """
-    Genera Excel en formato licitación STM con cantidades pre-calculadas.
+    Genera Excel en formato licitación con cantidades pre-calculadas.
+
+    template: path al .xlsx del mandante. Si no se indica (o no existe),
+              genera un workbook mínimo con las mismas hojas.
     Devuelve Path del archivo generado.
     """
     ruta_out = Path(ruta_out)
 
-    if Path(template).exists():
+    if template is not None and Path(template).exists():
         wb = openpyxl.load_workbook(template)
     else:
-        # Sin template: crear workbook mínimo
+        if template is not None:
+            print(f"  WARN: template '{template}' no encontrado — generando workbook vacío")
+        # Sin template: crear workbook mínimo con las hojas esperadas
         wb = openpyxl.Workbook()
         wb.active.title = "Resumen Oferta"
         wb.create_sheet("A) Detalle Costo Directo")

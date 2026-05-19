@@ -1,0 +1,47 @@
+{
+  "_instrucciones": "JSON de ejemplo para cubicación de infraestructura eléctrica subterránea.\nUso: python poc_cubicacion.py --from-json ejemplo_electrico.json --tipo electrico --template cuadro_precios.xlsx --excel salida.xlsx\nRellena las profundidades y longitudes reales de tu proyecto.",
+
+  "datos_proyecto": {
+    "titulo": "Obras Civiles Túnel LAT — EJEMPLO GENÉRICO",
+    "licitacion": "XXXX-XX",
+    "mandante": "NOMBRE_MANDANTE",
+    "longitud_total_m": 1500,
+    "diametro_tunel_m": 2.21,
+    "area_sec_tunel_m2": 3.84,
+    "diametro_pique_m": 4.0,
+    "area_sec_pique_m2": 12.57,
+    "profundidades_rango_m": [12, 20],
+    "piques_totales": 5,
+    "tramos_tunel": 4
+  },
+
+  "piques": [
+    {"id": 1, "km_aprox": 0.000, "profundidad_m": 18.0,
+     "fuente_profundidad": "plano perfil rev.X", "notas": "Pique extremo inicio"},
+    {"id": 2, "km_aprox": 0.300, "profundidad_m": 15.0,
+     "fuente_profundidad": "estimado", "notas": "Pique típico"},
+    {"id": 3, "km_aprox": 0.750, "profundidad_m": 14.0,
+     "fuente_profundidad": "estimado", "notas": "Pique típico"},
+    {"id": 4, "km_aprox": 1.200, "profundidad_m": 15.5,
+     "fuente_profundidad": "estimado", "notas": "Pique típico"},
+    {"id": 5, "km_aprox": 1.500, "profundidad_m": 16.0,
+     "fuente_profundidad": "plano perfil rev.X", "notas": "Pique extremo término"}
+  ],
+
+  "tramos_tunel": [
+    {"id": 1, "entre_piques": "P1-P2", "longitud_m": 300,
+     "km_inicio": 0.000, "km_fin": 0.300,
+     "fuente_longitud": "estimado", "notas": ""},
+    {"id": 2, "entre_piques": "P2-P3", "longitud_m": 450,
+     "km_inicio": 0.300, "km_fin": 0.750,
+     "fuente_longitud": "estimado", "notas": ""},
+    {"id": 3, "entre_piques": "P3-P4", "longitud_m": 450,
+     "km_inicio": 0.750, "km_fin": 1.200,
+     "fuente_longitud": "estimado", "notas": ""},
+    {"id": 4, "entre_piques": "P4-P5", "longitud_m": 300,
+     "km_inicio": 1.200, "km_fin": 1.500,
+     "fuente_longitud": "estimado", "notas": ""}
+  ],
+
+  "resultados": []
+}

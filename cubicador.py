@@ -74,10 +74,16 @@ _VIAL_OVERRIDE = re.compile(
 
 
 _LOG_CANDIDATOS = Path(__file__).parent / "_training_candidates.log"
+_PROBA_LOG_THRESHOLD = 0.75   # por debajo de este umbral → candidato a revisión
+_log_vistos: set[tuple[str, str]] = set()  # deduplicación en memoria por sesión
 
 
 def _log_candidato(nombre: str, pred: str, proba: float) -> None:
     """Registra nombres con confianza baja para revisión y futura incorporación al dataset."""
+    key = (nombre, pred)
+    if key in _log_vistos:
+        return
+    _log_vistos.add(key)
     try:
         with open(_LOG_CANDIDATOS, "a", encoding="utf-8") as f:
             f.write(f'("{nombre}", "{pred}"),  # proba={proba:.2f} — REVISAR\n')
@@ -92,7 +98,7 @@ def clasificar_recinto(nombre: str) -> tuple[str, bool]:
     fue_heuristica=True si la confianza del modelo es baja (<60%) o se usó fallback regex.
 
     Estrategia: override regex → ML (TF-IDF + LR) → fallback regex si pkl no disponible.
-    Aprendizaje activo: nombres con confianza 0.60-0.75 se registran en _training_candidates.log.
+    Aprendizaje activo: nombres con confianza < 0.75 se registran en _training_candidates.log.
     """
     n = _norm(nombre)
     # Override pre-ML para términos de infraestructura que el modelo confunde con recintos
@@ -102,8 +108,7 @@ def clasificar_recinto(nombre: str) -> tuple[str, bool]:
     if modelo is not None:
         pred = modelo.predict([n])[0]
         proba = float(modelo.predict_proba([n]).max())
-        # Aprendizaje activo: loguear clasificaciones inciertas para revision humana
-        if proba < 0.75:
+        if proba < _PROBA_LOG_THRESHOLD:
             _log_candidato(nombre, pred, proba)
         return pred, proba < _CONFIANZA_ML_MIN
 

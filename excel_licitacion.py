@@ -367,6 +367,11 @@ _BENCHMARKS = [
     ("Excavación túnel Ø2.21m",          "m³",  3.5,  6.0,  "ONDAC 2026 tunel urbano"),
     ("Montaje liner túnel Ø2.21m",       "m",   3.5,  6.0,  "Est. instalación"),
     ("Radier túnel H30",                 "m³",  7.0,  10.0, "ONDAC 2026"),
+    # Ventilación — Aporte STM (suministro mandante, referencia informativa)
+    ("Extractor Soler-Palau TGT/6-1409 (37kW) — 2 un", "un", 800, 1200,
+     "STM38110 §3.14 — suministro STM, instalación contratista"),
+    ("Jet Fan S&P TJHT/2/4-315-C (1.1kW) — N un",       "un",  20,   40,
+     "STM38110 §2.12 — suministro STM, cant. pendiente STM38109"),
 ]
 
 _NO_CUBICADO = [
@@ -379,10 +384,20 @@ _NO_CUBICADO = [
     ("4.x.7   Cobertura pique",       "gl",  "Suma alzada — cotización directa contratista"),
     ("4.x.9   Refuerzo apertura",     "gl",  "Suma alzada — cotización directa contratista"),
     ("4.x.14  Brocal temporal",       "gl",  "Suma alzada — cotización directa contratista"),
-    ("Sec. 2  Suministros (liner, fans, escalas)", "—",
-     "Aporte STM: mandante suministra, contratista solo instala"),
+    ("Sec. 2  Liner pique Ø4m + liner túnel Ø2.21m", "—",
+     "Aporte STM: mandante suministra el material liner, contratista instala (ítems 4.x.3, 5.x.3)"),
+    ("Sec. 2  Escalas y plataformas (estructura)", "—",
+     "Aporte STM: mandante suministra estructura, contratista monta (ítem 4.x.8)"),
+    ("Sec. 2  Extractor Soler-Palau TGT/6-1409 (37kW)", "2 un",
+     "Aporte STM: 2 extractores Ø1410mm en bocas P1 y P9. 132.000 m³/h, 200 Pa. "
+     "Contratista instala. Fuente: STM38110 §3.1 + §3.14"),
+    ("Sec. 2  Jet Fan S&P TJHT/2/4-315-C (1.1kW)", "N un",
+     "Aporte STM: ventiladores impulso tunel, 43N, 6.800 m³/h. "
+     "Cantidad N pendiente confirmar desde STM38109 Tabla 4.1. Fuente: STM38110 §2"),
     ("Sec. 1  Actividades Previas y Coordinación", "gl", "Suma alzada — depende de empresa"),
-    ("Sec. 3  Instalación de Faenas", "gl",  "Suma alzada — depende de empresa"),
+    ("Sec. 3  Instalación de Faenas", "gl",
+     "Suma alzada. IF SS Vitacura (STM-IF-20251009): 3 etapas (Túnel Liner / TL+OOEE / OOCC+OOEE). "
+     "Contenido típico: contenedores oficinas/baños/bodega, compresor, winche, minicargador, acopio liner."),
 ]
 
 # Cantidades pique 1 para escenarios

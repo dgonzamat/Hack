@@ -57,9 +57,19 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     add(["LOGIA", "LOGIA DE SERVICIO", "LOGIA SERVICIO",
          "LAVANDERIA", "LAVANDERÍA", "LAVAND.", "LAVAD.",
+         "LAVADERO", "LAVADO", "PIEZA LAVADO",
          "ZONA DE LAVADO", "ZONA LAVADO", "AREA DE LAVADO",
          "CUARTO LAVADO", "PIEZA DE LAVADO", "PATIO LAVADO",
          "CUARTO DE SERVICIO HUMEDO"], "humedo")
+
+    # Salas mecánicas con instalaciones hidráulicas (calderas, bombas, ACS)
+    # NB: "SALA MAQUINAS EDIFICIO" se mantiene como común (ascensores) en bloque común
+    add(["SALA DE MAQUINAS HIDRAULICA", "CUARTO DE MAQUINAS HIDRAULICAS",
+         "SALA CALDERAS", "SALA CALDERA", "CUARTO CALDERAS", "CUARTO CALDERA",
+         "SALA DE CALEFACCION", "CUARTO CALEFACCION",
+         "SALA COMPRESORES PISCINA", "CUARTO COMPRESORES PISCINA",
+         "SALA ACS", "CUARTO ACS", "SALA CLIMATIZACION HIDRONICA",
+         "CUARTO TERMOTANQUES", "SALA ESTANQUES AGUA"], "humedo")
 
     add(["SH", "SSHH", "S.H.", "S.S.H.H.", "SS.HH.", "SS HH",
          "SERV HIG", "SERVICIO HIGIENICO", "SERVICIO HIGIÉNICO",
@@ -122,6 +132,7 @@ def _generar_dataset() -> list[tuple[str, str]]:
     add(["TERRAZA", "BALCON", "BALCÓN", "LOGGIA",
          "PATIO", "PATIO EXTERIOR", "PATIO INTERIOR", "PATIO DE SERVICIO",
          "JARDIN", "JARDÍN", "JARDIN FRONTAL", "JARDIN TRASERO",
+         "ANTEJARDÍN", "ANTEJARDIN", "JARDIN ACCESO", "JARDIN INGRESO",
          "DECK", "TERRAZA DECK", "PATIO DECK",
          "QUINCHO", "PARRILLA", "ASADOR", "SOLARIUM",
          "PISCINA", "AREA PISCINA", "TERRAZA PISCINA",
@@ -603,6 +614,15 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SUBESTACION VITACURA", "SUBESTACION PROVIDENCIA",
          "SS VITACURA", "SS PROVIDENCIA",
          "SALA SER LAT", "SALA CONTROL LAT"], "electrico")
+
+    # Ventilación de galería eléctrica (jet fans + extractores)
+    # IDs FAN1..FAN23 vienen del proyecto Vitacura (STM38109 Tabla 4.2)
+    add(["JET FAN", "VENTILADOR JET FAN", "FAN TUNEL",
+         "VENTILADOR IMPULSO GALERIA LAT", "JET FAN GALERIA",
+         "EXTRACTOR GALERIA LAT", "VENTILADOR EXTRACTOR TUNEL CABLES",
+         "EQUIPO VENTILACION GALERIA LAT", "SISTEMA VENTILACION LAT",
+         "FAN1", "FAN5", "FAN12", "FAN23",
+         "FAN.01", "FAN.12", "FAN.23"], "electrico")
 
     # Elementos estructurales y de obra civil propios del sistema
     add(["BROCAL DEFINITIVO", "BROCAL TEMPORAL", "BROCAL PIQUE",

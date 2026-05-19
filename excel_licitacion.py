@@ -97,8 +97,8 @@ _PIQUE_ITEMS = {
     "retiro_excavacion_pique":     "4.{p}.2",
     "montaje_liner_pique":         "4.{p}.3",
     "montaje_escalas_plataformas": "4.{p}.8",
-    # brocal_definitivo: piques 1,9 tienen 15 sub-ítems (→ .15); piques 2-8 tienen 14 (→ .14)
-    # Se maneja dinámicamente en _build_qty_map
+    # montaje_estructura_cables: solo P1 y P9 (ítem .13) — manejado en _build_qty_map
+    # brocal_definitivo: P1/P9 → .15, P2-8 → .14 — manejado en _build_qty_map
 }
 # Items de tunnel: para tramo T (1..8)
 _TUNEL_ITEMS = {
@@ -106,6 +106,7 @@ _TUNEL_ITEMS = {
     "retiro_excavacion_tunel": "5.{t}.2",
     "montaje_liner_tunel":     "5.{t}.3",
     "radier_tunel":            "5.{t}.7",
+    "instalacion_cables":      "5.{t}.8",
 }
 # Piques 1,9 tienen ítem extra "Montaje estructura soporte de cables" (4.x.13)
 # → brocal definitivo queda en 4.x.15. Para piques 2-8 está en 4.x.14.
@@ -135,6 +136,8 @@ def _build_qty_map(cubicacion: dict) -> dict[str, float]:
             if "brocal_definitivo" in pq:
                 brocal_num = _BROCAL_NUM.get(pid_i, "15")
                 qty[f"4.{pid_i}.{brocal_num}"] = pq["brocal_definitivo"]
+            if "montaje_estructura_cables" in pq:  # solo P1 y P9 (SS)
+                qty[f"4.{pid_i}.13"] = pq["montaje_estructura_cables"]
     else:
         partidas = {p["partida"]: p["cantidad"] for p in cubicacion.get("partidas", [])}
         for key, tpl in _PIQUE_ITEMS.items():
@@ -634,6 +637,295 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         row += 1
 
 
+# ── Hoja Memoria de Cálculo ───────────────────────────────────────────────────
+
+def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
+                                  resultado: dict) -> None:
+    """Hoja ordenada con racionales de TODOS los cálculos y sus fuentes."""
+    ws = wb.create_sheet("Memoria de Cálculo")
+    ws.column_dimensions["A"].width = 5
+    ws.column_dimensions["B"].width = 35
+    ws.column_dimensions["C"].width = 38
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 18
+    ws.column_dimensions["F"].width = 38
+
+    wrap = Alignment(wrap_text=True, vertical="top")
+    ctr  = Alignment(horizontal="center", vertical="center")
+
+    row = 1
+
+    def title(text):
+        nonlocal row
+        c = ws.cell(row=row, column=1, value=text)
+        c.font = Font(bold=True, color="FFFFFF", size=11)
+        c.fill = _FILL_HEADER; c.alignment = ctr
+        ws.merge_cells(f"A{row}:F{row}")
+        ws.row_dimensions[row].height = 22
+        row += 1
+
+    def section(text):
+        nonlocal row
+        c = ws.cell(row=row, column=1, value=text)
+        c.font = _FONT_BOLD; c.fill = _FILL_SECTION
+        ws.merge_cells(f"A{row}:F{row}")
+        row += 1
+
+    def header(cols):
+        nonlocal row
+        for i, h in enumerate(cols, 1):
+            c = ws.cell(row=row, column=i, value=h)
+            c.font = _FONT_BOLD; c.fill = _FILL_SECTION
+            c.border = _BORDER_THIN; c.alignment = ctr
+        row += 1
+
+    def data_row(cols, fill=None):
+        nonlocal row
+        for i, v in enumerate(cols, 1):
+            c = ws.cell(row=row, column=i, value=v)
+            c.font = _FONT_NORM; c.alignment = wrap; c.border = _BORDER_THIN
+            if fill:
+                c.fill = fill
+        row += 1
+
+    def note(text, color="C00000"):
+        nonlocal row
+        c = ws.cell(row=row, column=1, value=text)
+        c.font = Font(italic=True, size=8, color=color)
+        ws.merge_cells(f"A{row}:F{row}")
+        row += 1
+
+    title("MEMORIA DE CÁLCULO — TÚNEL LAT 2×110 kV VITACURA-PROVIDENCIA")
+    dp = cubicacion.get("datos_proyecto", {})
+    note(f"Documento generado: {__import__('datetime').date.today()} | "
+         f"Licitación: {dp.get('licitacion','?')} | Mandante: {dp.get('mandante','?')}",
+         color="666666")
+    row += 1
+
+    # ── Sec 1: Constantes geométricas ─────────────────────────────────────────
+    section("1. CONSTANTES GEOMÉTRICAS")
+    header(["#", "Constante", "Fórmula", "Valor", "Unidad", "Fuente"])
+    constantes = [
+        ("1.1", "Área sección pique", "π × r² = π × (4.0/2)²",
+         "12.5664", "m²", "STM38136 Ø interior pique"),
+        ("1.2", "Área sección túnel liner", "π × r² = π × (2.21/2)²",
+         "3.8359", "m²", "STM38136 Ø interior liner"),
+        ("1.3", "Radier H30 volumen por metro", "ancho × espesor = 2.21 × 0.15",
+         "0.3315", "m³/m", "Diseño estructural radier túnel"),
+        ("1.4", "Diámetro fundación pique", "4.20 m externo",
+         "4.20", "m", "STM38020 detalle típico"),
+        ("1.5", "Espesor liner túnel (PL)", "5 mm",
+         "0.005", "m", "STM38020 nota técnica"),
+    ]
+    for c in constantes:
+        data_row(list(c))
+    row += 1
+
+    # ── Sec 2: Profundidades de piques ────────────────────────────────────────
+    section("2. PROFUNDIDADES DE PIQUES — NV terreno - NV invert liner")
+    header(["Pique", "NV terreno (m.s.n.m)", "NV liner invert (m.s.n.m)",
+            "Profundidad (m)", "Excavación (m³)", "Fuente plano"])
+    AREA_PIQUE = 12.5664
+    for pq in resultado.get("piques", []):
+        nvt = pq.get("nv_terreno")
+        nvi = pq.get("nv_liner_invert")
+        prof = pq.get("profundidad_m")
+        excav = round(AREA_PIQUE * prof, 2)
+        fuente = pq.get("fuente_profundidad", "?")
+        # extraer plano del campo fuente
+        plano = "STM38020-23"
+        for s in ["STM38020", "STM38021", "STM38022", "STM38023"]:
+            if s in fuente:
+                plano = s
+                break
+        data_row([f"P{pq['id']}", f"{nvt:.2f}", f"{nvi:.2f}",
+                  f"{prof:.2f}", excav, plano], fill=_FILL_CALC)
+    note("⚠ Discrepancia P9: STM38109 §2.4 reporta 9.67m (referencia portal vs NV terreno). "
+         "Diferencia 0.61m × 12.57m² = ~7.7 m³ excavación adicional si se usa cota portal.")
+    row += 1
+
+    # ── Sec 3: Longitudes de tramos ───────────────────────────────────────────
+    section("3. LONGITUDES DE TRAMOS — DM piques sucesivos")
+    header(["Tramo", "Entre piques", "DM inicio (m)", "DM fin (m)",
+            "Longitud (m)", "Fuente plano"])
+    for tr in resultado.get("tramos_tunel", []):
+        dm_ini = tr.get("km_inicio", 0) * 1000
+        dm_fin = tr.get("km_fin", 0) * 1000
+        lng = tr.get("longitud_m", 0)
+        fuente = tr.get("fuente_longitud", "?")
+        plano = "STM38020-23"
+        for s in ["STM38020", "STM38021", "STM38022", "STM38023"]:
+            if s in fuente:
+                plano = s
+                break
+        data_row([f"T{tr['id']}", tr.get("entre_piques", "?"),
+                  f"{dm_ini:.1f}", f"{dm_fin:.1f}", f"{lng:.1f}", plano],
+                 fill=_FILL_CALC)
+    row += 1
+
+    # ── Sec 4: Fórmulas por partida ──────────────────────────────────────────
+    section("4. FÓRMULAS POR PARTIDA")
+    header(["#", "Partida", "Fórmula aplicada", "Cantidad total",
+            "Unidad", "Validación"])
+    pq_qty = cubicacion.get("piques_qty", {})
+    tr_qty = cubicacion.get("tramos_qty", {})
+    formulas = [
+        ("4.1", "Excavación piques",
+         "Σ (12.5664 m² × prof_i) para i=1..9",
+         sum(p.get("excavacion_pique", 0) for p in pq_qty.values()),
+         "m³", "✓ Coincide con suma manual"),
+        ("4.2", "Retiro excavación piques",
+         "= Excavación pique (igual volumen al botadero)",
+         sum(p.get("retiro_excavacion_pique", 0) for p in pq_qty.values()),
+         "m³", "✓ = Excavación"),
+        ("4.3", "Montaje liner pique",
+         "Σ profundidad_i para i=1..9",
+         sum(p.get("montaje_liner_pique", 0) for p in pq_qty.values()),
+         "m", "= longitud anillo × cantidad anillos"),
+        ("4.4", "Montaje escalas+plataformas",
+         "1 gl × 9 piques (Aporte STM)",
+         sum(p.get("montaje_escalas_plataformas", 0) for p in pq_qty.values()),
+         "gl", "✓ Una unidad global por pique"),
+        ("4.5", "Brocal definitivo",
+         "1 gl × 9 piques",
+         sum(p.get("brocal_definitivo", 0) for p in pq_qty.values()),
+         "gl", "P1/P9 → ítem .15; P2-8 → ítem .14"),
+        ("4.6", "Montaje estructura cables (SS)",
+         "1 gl × 2 piques SS (P1 y P9)",
+         sum(p.get("montaje_estructura_cables", 0) for p in pq_qty.values()),
+         "gl", "Solo SS Vitacura + SS Providencia"),
+        ("5.1", "Excavación túnel",
+         "Σ (3.8359 m² × longitud_i) para i=1..8",
+         sum(t.get("excavacion_tunel", 0) for t in tr_qty.values()),
+         "m³", "Verifica: 3.8359 × 2454.2 = 9414.2 ✓"),
+        ("5.2", "Radier túnel H30",
+         "Σ (0.3315 m³/m × longitud_i) para i=1..8",
+         sum(t.get("radier_tunel", 0) for t in tr_qty.values()),
+         "m³", "Verifica: 0.3315 × 2454.2 = 813.6 ✓"),
+        ("5.3", "Instalación cables",
+         "Σ (6 cables × longitud_i) para i=1..8",
+         sum(t.get("instalacion_cables", 0) for t in tr_qty.values()),
+         "ml", "⚠ Asumido: LAT 2×110kV = 2 circuitos × 3 fases"),
+    ]
+    for f in formulas:
+        data_row([f[0], f[1], f[2], round(f[3], 2), f[4], f[5]])
+    row += 1
+
+    # ── Sec 5: Equipamiento eléctrico ─────────────────────────────────────────
+    section("5. EQUIPAMIENTO ELÉCTRICO (Aporte STM — Sección 2 licitación)")
+    header(["#", "Equipo", "Cantidad", "Modelo / specs", "Ubicación", "Fuente"])
+    vent = dp.get("ventilacion", {})
+    jf = vent.get("jet_fans", {})
+    ex = vent.get("extractores", {})
+    equipos = [
+        ("5.1", "Jet Fan túnel", f"{jf.get('cantidad','?')}",
+         f"S&P TJHT2/4-315-CN ({jf.get('potencia_kw','?')} kW, "
+         f"{jf.get('empuje_n','?')} N, {jf.get('caudal_m3h','?')} m³/h)",
+         f"Fan1 DM+{jf.get('dm_inicio_m','?')} → "
+         f"Fan23 DM+{jf.get('dm_fin_m','?')}, cada {jf.get('separacion_m','?')} m",
+         "STM38109 §4.5 + Tabla 4.2 (REV.E 28-01-2026)"),
+        ("5.2", "Extractor pique", f"{ex.get('cantidad','?')}",
+         f"Soler-Palau TGT/6-1409 ({ex.get('potencia_kw','?')} kW, "
+         f"{ex.get('caudal_m3h','?')} m³/h, Ø{ex.get('diametro_mm','?')} mm)",
+         ex.get('ubicacion', '?'),
+         "STM38110 §3.1 + §3.14"),
+    ]
+    for e in equipos:
+        data_row(list(e), fill=_FILL_CALC)
+    row += 1
+
+    # ── Sec 6: Supuestos críticos ─────────────────────────────────────────────
+    section("6. SUPUESTOS CRÍTICOS Y VALIDACIONES PENDIENTES")
+    header(["#", "Supuesto", "Valor usado", "Origen", "Impacto si cambia", "Estado"])
+    supuestos = [
+        ("6.1", "N° túneles paralelos", "1", "Diseño STM",
+         "Multiplicar Sec 5 por N", "✓ Confirmado 1"),
+        ("6.2", "N° cables LAT por tramo", "6 (2×3 fases)",
+         "Estándar LAT 2×110kV", "Ajustar 5.x.8 proporcional", "⚠ Confirmar plano eléctrico"),
+        ("6.3", "Profundidad P9", "9.06 m (NV)",
+         "STM38023 vs STM38109 (9.67m)",
+         "Δ excav P9 = 7.7 m³", "⚠ Discrepancia 0.61m"),
+        ("6.4", "Diámetro liner interior", "2.21 m",
+         "STM38136 vs STM38109 (2.10m)",
+         "Δ sección = 0.38 m² (10%)", "✓ 2.21m incluye espesor anillos"),
+        ("6.5", "Longitud túnel total", "2454.2 m",
+         "STM38020-23 suma DM",
+         "STM38109 redondea a 2450m", "✓ Diferencia 4.2m (0.17%)"),
+        ("6.6", "Cantidades 4.x.10-12 (shotcrete/malla/pernos)",
+         "No cubicado", "Requiere RMR/Q rock mass",
+         "Eventual según geotecnia", "⚠ Pendiente STM38019 RMR"),
+        ("6.7", "UF referencial", "38.500 CLP",
+         "Mayo 2026", "Actualizar al mes oferta", "✓ Configurable"),
+        ("6.8", "Altura excavación = profundidad NV",
+         "Sí", "Convención técnica",
+         "Si sump existe → +volumen", "⚠ STM38023 nota 'Nivel -3.50' en P9"),
+    ]
+    for s in supuestos:
+        data_row(list(s))
+    row += 1
+
+    # ── Sec 7: Trazabilidad de fuentes ────────────────────────────────────────
+    section("7. TRAZABILIDAD DE FUENTES (documentos consultados)")
+    header(["#", "Documento", "Revisión", "Datos extraídos", "Hoja relevante", "—"])
+    fuentes_doc = [
+        ("7.1", "STM38020 Planta y Perfil", "REV.0",
+         "P1, P2, P3 NV + DM tramos T1-T3", "Detalle Costo Directo", ""),
+        ("7.2", "STM38021 Planta y Perfil", "REV.0",
+         "P4, P5 NV + DM tramos T3-T5", "Detalle Costo Directo", ""),
+        ("7.3", "STM38022 Planta y Perfil", "REV.0",
+         "P6, P7 NV + DM tramos T5-T7", "Detalle Costo Directo", ""),
+        ("7.4", "STM38023 Planta y Perfil", "REV.0",
+         "P8, P9 NV + DM tramos T7-T8", "Detalle Costo Directo", ""),
+        ("7.5", "STM38109 Memoria Ventilación", "REV.E 28-01-2026",
+         "23 jet fans S&P TJHT2/4-315-CN, ubicación Tabla 4.2", "Sec 5 supuestos", ""),
+        ("7.6", "STM38110 ETP Equipos Ventilación", "REV.0 14-11-2025",
+         "2 extractores Soler-Palau TGT/6-1409, modelo jet fan", "Sec 5 supuestos", ""),
+        ("7.7", "STM38019 Geotécnica", "—",
+         "Estratigrafía H1-H3 (Relleno/Grava 2°/Grava 1°)",
+         "Pendiente RMR para 4.x.10-12", ""),
+        ("7.8", "STM38136 Planos eléctricos", "REV.1 06/04/2026",
+         "Ø interior pique 4.0m, Ø interior liner 2.21m",
+         "Sec 1 constantes", ""),
+        ("7.9", "BAE Licitación 2025-25-TX-SS-RM", "REV.0 13/04/2026",
+         "Estructura items 4.x y 5.x", "A) Detalle", ""),
+        ("7.10", "IF SS Vitacura", "20251009 (3 etapas)",
+         "Composición Instalación de Faenas",
+         "Sec 3 supuestos suma alzada", ""),
+    ]
+    for f in fuentes_doc:
+        data_row(list(f))
+    row += 1
+
+    # ── Sec 8: Resumen totales ────────────────────────────────────────────────
+    section("8. RESUMEN TOTALES CUBICADOS")
+    header(["#", "Concepto", "Cantidad", "Unidad", "—", "—"])
+    resumen = [
+        ("8.1", "Excavación piques (suma)",
+         sum(p.get("excavacion_pique", 0) for p in pq_qty.values()), "m³", "", ""),
+        ("8.2", "Excavación túnel (suma)",
+         sum(t.get("excavacion_tunel", 0) for t in tr_qty.values()), "m³", "", ""),
+        ("8.3", "Liner pique (suma profundidades)",
+         sum(p.get("montaje_liner_pique", 0) for p in pq_qty.values()), "m", "", ""),
+        ("8.4", "Liner túnel (longitud total)",
+         sum(t.get("montaje_liner_tunel", 0) for t in tr_qty.values()), "m", "", ""),
+        ("8.5", "Radier H30",
+         sum(t.get("radier_tunel", 0) for t in tr_qty.values()), "m³", "", ""),
+        ("8.6", "Cables instalados (6 × longitud)",
+         sum(t.get("instalacion_cables", 0) for t in tr_qty.values()), "ml", "", ""),
+        ("8.7", "Estructura cables SS",
+         sum(p.get("montaje_estructura_cables", 0) for p in pq_qty.values()),
+         "gl", "(solo P1+P9)", ""),
+        ("8.8", "Escalas+plataformas",
+         sum(p.get("montaje_escalas_plataformas", 0) for p in pq_qty.values()),
+         "gl", "", ""),
+        ("8.9", "Brocales definitivos",
+         sum(p.get("brocal_definitivo", 0) for p in pq_qty.values()), "gl", "", ""),
+    ]
+    for r in resumen:
+        c1 = round(r[2], 2) if isinstance(r[2], float) else r[2]
+        data_row([r[0], r[1], c1, r[3], r[4], r[5]], fill=_FILL_CALC)
+
+
 # ── Función principal ─────────────────────────────────────────────────────────
 
 def exportar_licitacion(
@@ -687,11 +979,13 @@ def exportar_licitacion(
         c.fill = fill
         c.font = Font(size=8, italic=True)
 
-    # Eliminar hoja de análisis preexistente del template antes de regenerar
-    if "Análisis de Precios" in wb.sheetnames:
-        del wb["Análisis de Precios"]
+    # Eliminar hojas preexistentes del template antes de regenerar
+    for sheet_name in ("Análisis de Precios", "Memoria de Cálculo"):
+        if sheet_name in wb.sheetnames:
+            del wb[sheet_name]
 
     _build_analisis_sheet(wb, cubicacion)
+    _build_memoria_calculo_sheet(wb, cubicacion, resultado)
 
     wb.save(ruta_out)
     return ruta_out

@@ -155,6 +155,8 @@ def _fill_detalle_sheet(ws, qty_map: dict[str, float]) -> dict[str, int]:
             total_cell.value = f"=D{row_idx}*E{row_idx}"
             total_cell.number_format = "#,##0.00"
         elif qty_cell.value is not None and qty_cell.value != 0:
+            if isinstance(qty_cell.value, float):
+                qty_cell.value = round(qty_cell.value, 4)
             qty_cell.fill = _FILL_ORIGINAL
             qty_cell.font = _FONT_NORM
             total_cell.value = f"=D{row_idx}*E{row_idx}"

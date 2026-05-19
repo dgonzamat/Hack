@@ -161,6 +161,119 @@ def _build_qty_map(cubicacion: dict) -> dict[str, float]:
     return qty
 
 
+# ── Descriptores de ítems licitación ─────────────────────────────────────────
+# Estructura: (sub_num, descripcion, unidad, es_eventual)
+_ITEMS_PIQUE = [
+    ("1",  "Excavación pique",                        "m³",  False),
+    ("2",  "Retiro y transporte material excavado",    "m³",  False),
+    ("3",  "Montaje liner pique",                      "m",   False),
+    ("4",  "Refuerzo losa anillo fondo",               "gl",  True),
+    ("5",  "Construcción dren",                        "gl",  True),
+    ("6",  "Terminaciones pique",                      "gl",  True),
+    ("7",  "Cobertura pique",                          "gl",  True),
+    ("8",  "Montaje escalas y plataformas",            "gl",  False),
+    ("9",  "Refuerzo apertura pique",                  "gl",  True),
+    ("10", "Shotcrete",                                "m³",  True),
+    ("11", "Malla electrosoldada",                     "kg",  True),
+    ("12", "Pernos de convergencia",                   "und", True),
+]
+# Ítems extra solo para piques 1 y 9 (SS)
+_ITEMS_PIQUE_SS = [
+    ("13", "Montaje estructura soporte de cables",     "gl",  False),
+    ("15", "Brocal definitivo",                        "gl",  False),
+]
+# Brocal para piques típicos 2-8
+_ITEMS_PIQUE_TYP = [
+    ("14", "Brocal definitivo",                        "gl",  False),
+]
+_ITEMS_TUNEL = [
+    ("1",  "Excavación túnel",                         "m³",  False),
+    ("2",  "Retiro y transporte material excavado",    "m³",  False),
+    ("3",  "Montaje liner túnel Ø2.21m",               "m",   False),
+    ("4",  "Pernos frente de trabajo (eventual)",      "und", True),
+    ("5",  "Shotcrete frente de trabajo (eventual)",   "m³",  True),
+    ("6",  "Paraguas de micropilotes (eventual)",      "und", True),
+    ("7",  "Radier túnel H30",                         "m³",  False),
+    ("8",  "Instalación cables",                       "ml",  False),
+]
+_ENTRE_PIQUES = {
+    1: "P1-P2", 2: "P2-P3", 3: "P3-P4", 4: "P4-P5",
+    5: "P5-P6", 6: "P6-P7", 7: "P7-P8", 8: "P8-P9",
+}
+
+
+def _create_detalle_rows(ws) -> None:
+    """
+    Escribe la estructura completa de ítems (secciones 4 y 5) en una hoja vacía.
+    Después _fill_detalle_sheet puede colorear y llenar cantidades sobre esta base.
+    """
+    wrap = Alignment(wrap_text=True, vertical="top")
+    ctr  = Alignment(horizontal="center", vertical="center")
+
+    def header(text, row):
+        c = ws.cell(row=row, column=1, value=text)
+        c.font = Font(bold=True, color="FFFFFF", size=10)
+        c.fill = _FILL_HEADER
+        c.alignment = ctr
+        ws.merge_cells(f"A{row}:H{row}")
+
+    def section(num, desc, row):
+        ws.cell(row=row, column=1, value=num).font = _FONT_BOLD
+        c = ws.cell(row=row, column=2, value=desc)
+        c.font = _FONT_BOLD
+        c.fill = _FILL_SECTION
+        ws.merge_cells(f"B{row}:H{row}")
+
+    def item_row(num, desc, unid, row):
+        for col, val in [(1, num), (2, desc), (3, unid)]:
+            c = ws.cell(row=row, column=col, value=val)
+            c.font = _FONT_NORM
+            c.border = _BORDER_THIN
+            c.alignment = wrap
+        # D=cantidad, E=precio UF, F=total UF, G=obs
+        for col in range(4, 9):
+            c = ws.cell(row=row, column=col, value=None)
+            c.border = _BORDER_THIN
+            if col == 5:  # precio → amarillo vacío por defecto
+                c.fill = _FILL_PRICE
+
+    row = 1
+    # Encabezado de columnas
+    header("CUADRO DE PRECIOS — DETALLE COSTO DIRECTO", row)
+    row += 1
+    for col, h in enumerate(["N°", "Descripción", "Und", "Cantidad", "P.U. (UF)", "Total (UF)", "Obs."], 1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = _FONT_BOLD; c.fill = _FILL_SECTION; c.border = _BORDER_THIN
+        c.alignment = ctr
+    row += 1
+
+    # Sección 4: Piques
+    section("4", "OBRAS EN PIQUES", row); row += 1
+    for p in range(1, 10):
+        tipo = "SS VITACURA" if p == 1 else ("SS PROVIDENCIA" if p == 9 else "TÍPICO")
+        section(f"4.{p}", f"PIQUE {p} ({tipo})", row); row += 1
+        items = _ITEMS_PIQUE + (_ITEMS_PIQUE_SS if p in (1, 9) else _ITEMS_PIQUE_TYP)
+        for sub, desc, unid, _ in items:
+            item_row(f"4.{p}.{sub}", desc, unid, row); row += 1
+
+    # Sección 5: Túneles
+    section("5", "OBRAS EN TÚNELES", row); row += 1
+    for t in range(1, 9):
+        ep = _ENTRE_PIQUES.get(t, f"P{t}-P{t+1}")
+        section(f"5.{t}", f"TRAMO {t}  ({ep})", row); row += 1
+        for sub, desc, unid, _ in _ITEMS_TUNEL:
+            item_row(f"5.{t}.{sub}", desc, unid, row); row += 1
+
+    # Ajuste columnas
+    ws.column_dimensions["A"].width = 9
+    ws.column_dimensions["B"].width = 52
+    ws.column_dimensions["C"].width = 7
+    ws.column_dimensions["D"].width = 13
+    ws.column_dimensions["E"].width = 14
+    ws.column_dimensions["F"].width = 14
+    ws.column_dimensions["G"].width = 22
+
+
 def _fill_detalle_sheet(
     ws,
     qty_map: dict[str, float],
@@ -347,6 +460,20 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
     ws.merge_cells(f"A{row}:F{row}")
     ws.cell(row=row, column=1).font = Font(italic=True, size=8)
     row += 1
+
+    # Nota supuesto: 1 túnel vs 2 paralelos
+    n_tuneles = cubicacion.get("datos_proyecto", {}).get("n_tuneles_paralelos", 1)
+    nota_tn = (
+        f"⚠ SUPUESTO: cantidades sección 5 calculadas para 1 túnel Ø2.21m por tramo. "
+        f"Si la licitación requiere {2 if n_tuneles == 1 else n_tuneles} túneles paralelos, "
+        f"multiplicar cantidades 5.x por {2 if n_tuneles == 1 else n_tuneles}."
+    ) if n_tuneles == 1 else (
+        f"✓ Cantidades sección 5 calculadas para {n_tuneles} túneles Ø2.21m por tramo."
+    )
+    c = ws.cell(row=row, column=1, value=nota_tn)
+    c.font = Font(italic=True, size=8, color="C00000" if n_tuneles == 1 else "375623")
+    ws.merge_cells(f"A{row}:F{row}")
+    row += 1
     blank()
 
     # ── Sección 1: Cubicación realizada ───────────────────────────────────────
@@ -529,6 +656,8 @@ def exportar_licitacion(
     qty_map = _build_qty_map(cubicacion)
 
     ws_det = wb["A) Detalle Costo Directo"]
+    if ws_det.max_row <= 1:  # sheet vacía (sin template)
+        _create_detalle_rows(ws_det)
     _fill_detalle_sheet(ws_det, qty_map, precios_uf=precios_uf)
 
     # Leyenda de colores en Resumen Oferta

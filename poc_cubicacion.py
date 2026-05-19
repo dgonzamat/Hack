@@ -893,6 +893,9 @@ def main() -> None:
                 piques=_piques_data,
                 tramos_tunel=_tramos_data,
             )
+            # Pasar datos_proyecto al cubicacion para el Excel (supuesto n_tuneles, UF, etc.)
+            if args.from_json:
+                cubicacion["datos_proyecto"] = datos.get("datos_proyecto", {})
             # Modo electrico: usar formato licitacion en lugar del Excel estándar
             try:
                 from excel_licitacion import exportar_licitacion

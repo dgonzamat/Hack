@@ -125,6 +125,47 @@ para evitar clasificaciones erróneas en recintos arquitectónicos.
 
 ---
 
+## Debugging
+
+Nunca parchear síntomas. Siempre:
+
+1. Reproducir el problema
+2. Identificar la causa raíz
+3. Explicar por qué ocurre
+4. Implementar el fix mínimo confiable
+5. Verificar que no hay regresiones con `make test`
+
+Ejemplo aplicado: bug `_VIAL_CATS` — "REVESTIMIENTO TUNEL" matcheaba `\bTUNEL\b` antes
+que `revestimiento_tunel`. Fix: reordenar la lista, no agregar lógica especial.
+
+---
+
+## Testing — reglas estrictas
+
+- Nunca reportar éxito sin ejecutar `make test`
+- Nunca afirmar que el código compila sin verificarlo
+- Si faltan tests para un cambio, proponer los mínimos de alto valor
+- Verificar backward compatibility al modificar funciones públicas (`clasificar_recinto`, `cubicar_vial`)
+
+---
+
+## Seguridad
+
+- Nunca hardcodear la API key de Anthropic — usar variable de entorno `ANTHROPIC_API_KEY`
+- Nunca loguear contenido de PDFs (pueden tener datos confidenciales de licitaciones)
+- `_training_candidates.log` excluido de git — puede contener nombres de recintos de proyectos privados
+
+---
+
+## Restricciones absolutas (anti-alucinación)
+
+- Nunca inventar comportamiento de librerías (sklearn, openpyxl, PyMuPDF)
+- Nunca asumir interfaces no documentadas de la API de Anthropic
+- Nunca afirmar que tests pasaron si no se ejecutaron en esta sesión
+- Si hay incertidumbre sobre una fórmula de cubicación → citar norma MOP/EFE o preguntar
+
+---
+
 ## Lo que NO hacer
 
 - No agregar ejemplos sintéticos seco/común/exterior que compartan char n-grams con vial

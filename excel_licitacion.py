@@ -29,16 +29,46 @@ _PRECIO_PIQUE = {
     "1":  "excavacion_pique",
     "2":  "retiro_excavacion_pique",
     "3":  "montaje_liner_pique",
+    "4":  "refuerzo_losa_anillo_fondo",
+    "5":  "construccion_dren_pique",
+    "6":  "terminaciones_pique",
+    "7":  "cobertura_pique",
     "8":  "montaje_escalas_plataformas",
+    "9":  "refuerzo_apertura_pique",
+    "10": "shotcrete_pique",
+    "11": "malla_pique",
+    "12": "pernos_convergencia",
+    "13": "montaje_estructura_cables",
     "14": "brocal_definitivo",
     "15": "brocal_definitivo",
 }
 # Sección 5 (túneles)
 _PRECIO_TUNEL = {
-    "1": "excavacion_tunel",
-    "2": "retiro_excavacion_tunel",
-    "3": "montaje_liner_tunel",
-    "7": "radier_tunel",
+    "1":  "excavacion_tunel",
+    "2":  "retiro_excavacion_tunel",
+    "3":  "montaje_liner_tunel",
+    "4":  "pernos_frente_fibra_vidrio",
+    "5":  "shotcrete_frente_tunel",
+    "6":  "paraguas_micropilotes",
+    "7":  "radier_tunel",
+    "8":  "monitoreo_pernos",
+    "12": "estructura_cables_tunel",
+}
+# Sección 7 (reposición superficial) — ítem completo 7.N → clave de precio
+_PRECIO_SEC7 = {
+    "7.1":  "base_binder_asfalto",
+    "7.2":  "base_chancada_cbr80",
+    "7.3":  "calzada_asfaltica",
+    "7.4":  "demolicion_calzada",
+    "7.5":  "excavacion_dura",
+    "7.6":  "imprimacion_asfalto",
+    "7.7":  "preparacion_subrasante",
+    "7.8":  "riego_liga",
+    "7.9":  "subbase_estabilizada",
+    "7.10": "entibacion_excavaciones",
+    "7.11": "reposicion_areas_verdes",
+    "7.12": "reposicion_soleras",
+    "7.13": "demolicion_reposicion_veredas",
 }
 
 
@@ -60,8 +90,12 @@ def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
 
 
 def _precio_para_item(num: str, precios_uf: dict[str, float]) -> float | None:
-    """Devuelve precio UF para un ítem numerado tipo '4.3.1' o '5.2.7', o None."""
+    """Devuelve precio UF para un ítem numerado tipo '4.3.1', '5.2.7' o '7.10', o None."""
     parts = num.split(".")
+    # Sección 7: ítem de 2 partes ej '7.1', '7.10'
+    if len(parts) == 2 and parts[0] == "7":
+        key = _PRECIO_SEC7.get(num)
+        return precios_uf.get(key) if key else None
     if len(parts) != 3:
         return None
     seccion, _, sub = parts
@@ -102,11 +136,12 @@ _PIQUE_ITEMS = {
 }
 # Items de tunnel: para tramo T (1..8)
 _TUNEL_ITEMS = {
-    "excavacion_tunel":        "5.{t}.1",
-    "retiro_excavacion_tunel": "5.{t}.2",
-    "montaje_liner_tunel":     "5.{t}.3",
-    "radier_tunel":            "5.{t}.7",
-    "instalacion_cables":      "5.{t}.8",
+    "excavacion_tunel":         "5.{t}.1",
+    "retiro_excavacion_tunel":  "5.{t}.2",
+    "montaje_liner_tunel":      "5.{t}.3",
+    "radier_tunel":             "5.{t}.7",
+    "monitoreo_pernos":         "5.{t}.8",
+    "estructura_cables_tunel":  "5.{t}.12",
 }
 # Piques 1,9 tienen ítem extra "Montaje estructura soporte de cables" (4.x.13)
 # → brocal definitivo queda en 4.x.15. Para piques 2-8 está en 4.x.14.
@@ -926,6 +961,75 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
         data_row([r[0], r[1], c1, r[3], r[4], r[5]], fill=_FILL_CALC)
 
 
+# ── Llenado referencial de Costos Indirectos / GG / Utilidad ──────────────────
+
+# Plazo referencial proyecto: 24 meses (revisar Bases Tecnicas para plazo real)
+_PLAZO_MESES_REF = 24
+
+# Valores referenciales por linea — {row: (cantidad, tiempo, precio_uf, nota)}
+# Fuente: tasas mercado Chile 2026 ajustadas para proyecto tunneling ~73K UF directo
+# Target: Indirecto+GG+Util ~45-50% del directo (norma 40-55% en obras especializadas)
+# Cantidad y tiempo son D y E del template; G = D*E*F en formula
+_COSTOS_IND_REF = {
+    # 1.1 Vigilancia (servicio 24h externalizado)
+    10: (1, _PLAZO_MESES_REF, 100, "Servicio vigilancia 24h externalizado"),
+    # 1.2 Personal indirecto — UF/mes acordes mercado Chile 2026
+    13: (1, _PLAZO_MESES_REF, 150, "1 Administrador (~$5.8M CLP/mes)"),
+    14: (1, _PLAZO_MESES_REF, 120, "1 Jefe de Terreno (~$4.6M CLP/mes)"),
+    15: (2, _PLAZO_MESES_REF,  90, "2 Supervisores en turnos"),
+    16: (1, _PLAZO_MESES_REF,  80, "1 Encargado Prevencion Riesgos"),
+    17: (1, _PLAZO_MESES_REF,  70, "1 Encargado Medio Ambiente"),
+    18: (1, _PLAZO_MESES_REF,  80, "1 Topografo"),
+    19: (1, _PLAZO_MESES_REF,  55, "1 Trazador"),
+    20: (1, _PLAZO_MESES_REF,  50, "1 Bodeguero"),
+    # 1.3 Maquinarias / vehiculos
+    24: (3, _PLAZO_MESES_REF,  35, "3 Camionetas operativas"),
+    25: (1, _PLAZO_MESES_REF,  50, "Fletes mensuales"),
+    26: (1, _PLAZO_MESES_REF,  30, "Arriendo andamios"),
+    27: (1, _PLAZO_MESES_REF,  80, "Equipos menores (grupos, compresor)"),
+    # 1.4 Residuos
+    30: (1, _PLAZO_MESES_REF,  50, "Disposicion residuos sólidos"),
+    31: (1, _PLAZO_MESES_REF, 120, "Disposicion excedentes excavación"),
+    # 2 Gastos Generales (1 gl, valor en F directo)
+    47: (1, 1, 3200, "Aporte oficina central ~4.4% directo"),
+    48: (1, 1, 1800, "Gastos financieros ~2.5% directo"),
+    49: (1, 1, 1200, "Boletas garantia + seguros ~1.6% directo"),
+    # 3 Utilidades
+    53: (1, 1, 8000, "Utilidad contratista ~11% directo"),
+}
+
+
+def _fill_costos_indirectos_sheet(ws) -> None:
+    """Rellena cantidades, tiempos y precios referenciales en B) Detalle C. Ind.
+
+    Marca celdas en salmón (_FILL_PRICE_REF) para indicar valor estimado.
+    Mantiene fórmulas G = D*E*F del template — solo escribe D, E, F.
+    """
+    if ws is None:
+        return
+    for fila, (cant, tiempo, precio_uf, nota) in _COSTOS_IND_REF.items():
+        # D = cantidad, E = tiempo, F = precio unitario UF
+        for col, val in [(4, cant), (5, tiempo), (6, precio_uf)]:
+            c = ws.cell(row=fila, column=col, value=val)
+            c.fill = _FILL_PRICE_REF
+            c.font = _FONT_NORM
+            c.border = _BORDER_THIN
+            if col == 6:
+                c.number_format = '#,##0.00'
+        # Nota referencial en columna I (fuera de la formula)
+        c_nota = ws.cell(row=fila, column=9, value=f"REF: {nota}")
+        c_nota.font = Font(size=8, italic=True, color="808080")
+
+    # Header de nota referencial al final del sheet
+    last_row = ws.max_row + 2
+    c = ws.cell(row=last_row, column=1,
+                value=(f"⚠ Valores en salmón (cantidades, tiempos, precios) son REFERENCIALES "
+                       f"para plazo {_PLAZO_MESES_REF} meses. "
+                       f"Contratista debe ajustar a su estructura organizacional y plazo real."))
+    c.font = Font(size=9, italic=True, bold=True, color="C00000")
+    ws.merge_cells(start_row=last_row, start_column=1, end_row=last_row, end_column=8)
+
+
 # ── Función principal ─────────────────────────────────────────────────────────
 
 def exportar_licitacion(
@@ -966,6 +1070,10 @@ def exportar_licitacion(
     if ws_det.max_row <= 1:  # sheet vacía (sin template)
         _create_detalle_rows(ws_det)
     _fill_detalle_sheet(ws_det, qty_map, precios_uf=precios_uf)
+
+    # Llenar costos indirectos referenciales si la hoja existe (viene del template)
+    ws_ind = wb["B) Detalle C. Ind., GG y Utilid"] if "B) Detalle C. Ind., GG y Utilid" in wb.sheetnames else None
+    _fill_costos_indirectos_sheet(ws_ind)
 
     # Leyenda de colores en Resumen Oferta
     ws_res = wb["Resumen Oferta"]

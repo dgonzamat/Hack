@@ -1212,16 +1212,27 @@ def cubicar_electrico(
                 "montaje_escalas_plataformas": 1,
                 "brocal_definitivo":           1,
             }
-            if pid in (1, 9):  # SS Vitacura (P1) y SS Providencia (P9)
-                piques_qty[pid]["montaje_estructura_cables"] = 1
+            # 4.x.13 — Montaje estructura soporte cables (kg de acero)
+            # Solo SS Vitacura (P1) y SS Providencia (P9): ~500 kg estructura por SS (estimado)
+            if pid in (1, 9):
+                piques_qty[pid]["montaje_estructura_cables"] = 500
+            # 4.x.4 a 4.x.7, 4.x.9: items "gl" suma alzada — 1 gl por pique
+            for k in ("refuerzo_losa_anillo_fondo", "construccion_dren_pique",
+                      "terminaciones_pique", "cobertura_pique", "refuerzo_apertura_pique"):
+                piques_qty[pid][k] = 1
             nota = f"Pique {pid} (Ø4.0m × {prof:.1f}m prof.)"
             _add("excavacion_pique", "Excavación pique", "m3", excav, nota)
             _add("retiro_excavacion_pique", "Retiro excavación y transporte botadero", "m3", excav, nota)
             _add("montaje_liner_pique", "Montaje liner pique Ø4.0m (sello+mortero)", "m", prof, nota)
             _add("montaje_escalas_plataformas", "Montaje escalas y plataformas (STM aporta)", "gl", 1, f"Pique {pid}")
             _add("brocal_definitivo", "Construcción brocal definitivo", "gl", 1, f"Pique {pid}")
+            _add("refuerzo_losa_anillo_fondo", "Refuerzo losa anillo fondo pique", "gl", 1, f"Pique {pid}")
+            _add("construccion_dren_pique", "Construcción dren pique", "gl", 1, f"Pique {pid}")
+            _add("terminaciones_pique", "Terminaciones pique", "gl", 1, f"Pique {pid}")
+            _add("cobertura_pique", "Cobertura pique (cámara hormigón)", "gl", 1, f"Pique {pid}")
+            _add("refuerzo_apertura_pique", "Refuerzo apertura pique (acceso túnel)", "gl", 1, f"Pique {pid}")
             if pid in (1, 9):
-                _add("montaje_estructura_cables", "Montaje estructura soporte cables SS", "gl", 1, f"Pique {pid} (SS)")
+                _add("montaje_estructura_cables", "Montaje estructura soporte cables (kg acero)", "kg", 500, f"Pique {pid} (SS)")
     else:
         # ── Modo legacy: un pique desde recintos (fallback) ───────────────────
         for rec in resultado.get("recintos", []):
@@ -1248,27 +1259,29 @@ def cubicar_electrico(
 
     if tramos_tunel:
         # ── Modo multi-tramo: datos estructurados desde JSON ─────────────────
+        # Soportes de cables AT (5.x.12, kg): estimado 20 kg/ml para 6 cables LAT 2×110kV
+        KG_SOPORTE_PER_ML = 20.0
         for tr in tramos_tunel:
             tid = tr["id"]
             lng = float(tr["longitud_m"])
             excav = AREA_TUNEL_M2 * lng
             radier = RADIER_VOL_PER_M * lng
-            # LAT 2×110kV = 2 circuitos × 3 fases = 6 cables por tramo
-            N_CABLES_LAT = 6
-            cables_ml = round(N_CABLES_LAT * lng, 1)
+            soporte_kg = round(KG_SOPORTE_PER_ML * lng, 1)
             tramos_qty[tid] = {
                 "excavacion_tunel":       round(excav, 2),
                 "retiro_excavacion_tunel": round(excav, 2),
                 "montaje_liner_tunel":    round(lng, 1),
                 "radier_tunel":           round(radier, 2),
-                "instalacion_cables":     cables_ml,
+                "monitoreo_pernos":       1,
+                "estructura_cables_tunel": soporte_kg,
             }
             nota = f"Tramo {tid} P{tr['entre_piques']} ({lng:.0f}m)"
             _add("excavacion_tunel", "Excavación túnel Ø2.21m", "m3", excav, nota)
             _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", excav, nota)
             _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m (sello+mortero)", "m", lng, nota)
             _add("radier_tunel", "Radier hormigón H30 e=15cm", "m3", radier, nota)
-            _add("instalacion_cables", "Instalación cables LAT 2×110kV (6 cables)", "ml", cables_ml, nota)
+            _add("monitoreo_pernos", "Monitoreo de pernos (1 gl por tramo)", "gl", 1, nota)
+            _add("estructura_cables_tunel", "Soporte cables AT (kg acero)", "kg", soporte_kg, nota)
     else:
         # ── Modo legacy: un tramo desde recintos ──────────────────────────────
         for rec in resultado.get("recintos", []):

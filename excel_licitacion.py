@@ -672,6 +672,10 @@ def exportar_licitacion(
         c.fill = fill
         c.font = Font(size=8, italic=True)
 
+    # Eliminar hoja de análisis preexistente del template antes de regenerar
+    if "Análisis de Precios" in wb.sheetnames:
+        del wb["Análisis de Precios"]
+
     _build_analisis_sheet(wb, cubicacion)
 
     wb.save(ruta_out)

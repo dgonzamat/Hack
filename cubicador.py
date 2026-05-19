@@ -1097,52 +1097,51 @@ def cubicar_electrico(
         else:
             area_total += area
 
-        # ── Pique (shaft): excavación + liner + radier ─────────────────────────
+        # ── Pique: excavación (m³) + retiro (m³) + liner (m lineal) ──────────
+        # Unidades según licitación real STM: liner en metros lineales de avance
         if _ELEC_PIQUE.search(n) and not _ELEC_PLATAFORMA.search(n):
             if area:
-                r = math.sqrt(area / math.pi)
-                perim = 2 * math.pi * r
-                _add("excavacion_pique_circular", "Excavación pique circular", "m3",
-                     area * h, f"{nombre} ({area:.1f}m²×{h:.0f}m)")
-                _add("liner_metalico_pl5mm", "Liner metálico PL e=5mm", "m2",
-                     perim * h, f"{nombre} (perim {perim:.1f}ml×{h:.0f}m)")
-                _add("radier_hormigon_h25_e15cm", "Radier hormigón H25 e=15cm", "m2",
-                     area, nombre)
+                vol = area * h
+                _add("excavacion_pique", "Excavación pique", "m3",
+                     vol, f"{nombre} ({area:.1f}m²×{h:.0f}m)")
+                _add("retiro_excavacion_pique", "Retiro excavación y transporte", "m3",
+                     vol, f"{nombre}")
+                # Liner en m lineales (un anillo = 1m de avance)
+                _add("montaje_liner_pique", "Montaje liner pique (sello+mortero)", "m",
+                     h, f"{nombre} ({h:.0f}m profundidad)")
+                # Escalas + plataformas: 1 gl por pique (STM aporta estructuras)
+                _add("montaje_escalas_plataformas", "Montaje escalas y plataformas", "gl",
+                     1, nombre)
+                _add("brocal_definitivo", "Construcción brocal definitivo", "gl", 1, nombre)
 
-        # ── Tunel liner independiente ──────────────────────────────────────────
+        # ── Túnel (Ø2.21m): excavación + liner lineal + radier (m³) ──────────
         elif _ELEC_TUNEL.search(n) and not _ELEC_PIQUE.search(n):
             if area:
-                r = math.sqrt(area / math.pi)
-                perim = 2 * math.pi * r
-                _add("liner_metalico_pl5mm", "Liner metálico PL e=5mm", "m2",
-                     perim * h, f"{nombre}")
-                _add("radier_hormigon_h25_e15cm", "Radier hormigón H25 e=15cm", "m2",
-                     area, nombre)
+                vol = area * h
+                _add("excavacion_tunel", "Excavación túnel", "m3",
+                     vol, f"{nombre} ({area:.1f}m²×{h:.0f}m)")
+                _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", vol, nombre)
+                _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m (sello+mortero)", "m",
+                     h, f"{nombre} ({h:.0f}m longitud)")
+                # Radier = área × espesor 0.15m
+                _add("radier_tunel", "Radier hormigón H30 e=15cm", "m3",
+                     area * 0.15, nombre)
 
-        # ── Plataformas: parrilla + baranda ────────────────────────────────────
-        if _ELEC_PLATAFORMA.search(n) and area:
-            _add("parrilla_piso_pletinas", "Parrilla piso pletinas 32x5@30", "m2", area, nombre)
-            r = math.sqrt(area / math.pi) if area > 0 else 2.0
-            _add("baranda_tubo_acero", "Baranda tubo acero galvanizado", "ml",
-                 2 * math.pi * r, nombre)
+        # ── Plataformas: montaje (STM aporta estructuras galvanizadas) ────────
+        if _ELEC_PLATAFORMA.search(n):
+            # No calcular parrilla por m² — licitación mide como kg o gl
+            # Registrar como informativo (sin precio) para visibilidad
+            pass
 
-        # ── Tableros ───────────────────────────────────────────────────────────
-        if _ELEC_TDFyA.search(n):
-            _add("tablero_tdfya_instalado", "Tablero TDFyA instalado", "un", 1, nombre)
-        elif _ELEC_TDF.search(n):
-            _add("tablero_tdf_instalado", "Tablero TDF instalado", "un", 1, nombre)
-
-        # ── Equipos ────────────────────────────────────────────────────────────
+        # ── Equipos (STM aporta, contratista instala) ─────────────────────────
         if _ELEC_FAN.search(n):
-            _add("ventilador_fan_380v", "Ventilador FAN 380V instalado", "un", 1, nombre)
-        if _ELEC_LUMINARIA.search(n):
-            _add("luminaria_led_16w_tunel", "Luminaria LED 16W túnel", "un", 1, nombre)
-        if _ELEC_ANILLO.search(n):
-            _add("anillo_metalico_d4200", "Anillo metálico Ø4200mm", "un", 1, nombre)
+            _add("montaje_jet_fan", "Montaje Jet Fan 3.5kW (STM aporta equipo)", "und", 1, nombre)
         if _ELEC_ESCALERA.search(n):
-            _add("escalera_gatera_acero", "Escalera gatera acero L6.5x4.78", "ml", h, nombre)
+            # Escalera contada por pique, ya incluida en montaje_escalas_plataformas
+            pass
         if _ELEC_BANDEJA.search(n):
-            _add("bandeja_cubierta_200x60", "Bandeja cubierta 200×60mm", "ml", h, nombre)
+            # Bandeja cubierta — montaje de estructura soporte cables (kg en licitación)
+            pass
 
     partidas = [
         {**v, "cantidad": round(v["cantidad"], 2)}

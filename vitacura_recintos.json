@@ -1,0 +1,189 @@
+{
+  "_fuente": "STM38136002 + STM38136003 — SS/EE VITACURA Y PROVIDENCIA 110/12 kV",
+  "_extraccion": "Manual desde planos PLA-ELE-STM-38136 rev.1 (06/04/2026)",
+  "_nota": "Infraestructura túnel eléctrico. Piques circulares Ø4000mm interior. Área sección = π×2²=12.57 m². Plataformas cada ~2m de altura.",
+  "resultados": [
+    {
+      "_pagina": 1,
+      "lamina": {
+        "titulo": "PERFIL TÚNEL Y ELEVACIÓN PIQUE 1 — SS/EE VITACURA Y PROVIDENCIA 110/12 kV",
+        "escala": "1:50",
+        "tipo": "planta_infraestructura"
+      },
+      "tiene_cotas": true,
+      "tiene_escala_grafica": false,
+      "calidad_plano": "alta",
+      "observaciones": "Plano eléctrico de túnel. 8 plataformas en PIQUE 1 (EL.+605.10 a EL.+625.06). Tableros TDF 1-5, TDF VIT, TDFyA 1. Ventiladores FAN.01/02.",
+      "_tiles_procesados": 1,
+      "_tokens_entrada": 0,
+      "_tokens_salida": 0,
+      "recintos": [
+        {
+          "nombre": "PIQUE 1 — ZONA TABLEROS TDF",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.72,
+          "dimensiones_estimadas": {"largo_m": 4.0, "ancho_m": 3.14},
+          "_nota": "Sección circular Ø4000mm. Zona con TDF 1-5 + TDF VIT + TDFyA 1"
+        },
+        {
+          "nombre": "PLATAFORMA 1",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": {"largo_m": 4.0, "ancho_m": 3.14},
+          "_nota": "EL. +610.000 — parrilla de piso pletinas"
+        },
+        {
+          "nombre": "PLATAFORMA 2",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +611.297"
+        },
+        {
+          "nombre": "PLATAFORMA 3",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +612.991"
+        },
+        {
+          "nombre": "PLATAFORMA 4",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +614.100"
+        },
+        {
+          "nombre": "PLATAFORMA 5",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +615.600"
+        },
+        {
+          "nombre": "PLATAFORMA 6",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +617.100"
+        },
+        {
+          "nombre": "PLATAFORMA 7",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +619.000"
+        },
+        {
+          "nombre": "PLATAFORMA 8",
+          "departamento": "PIQUE 1",
+          "area_m2": 12.57,
+          "confianza": 0.65,
+          "dimensiones_estimadas": null,
+          "_nota": "EL. +620.900"
+        }
+      ],
+      "muros": {
+        "exterior_ml": 0,
+        "interior_ml": 0
+      },
+      "vanos": {
+        "puertas": [],
+        "ventanas": []
+      }
+    },
+    {
+      "_pagina": 2,
+      "lamina": {
+        "titulo": "DISPOSICIÓN TABLEROS PIQUE 2-3-4-5-6-7-8 (típico) — SS/EE VITACURA Y PROVIDENCIA",
+        "escala": "1:200",
+        "tipo": "planta_infraestructura"
+      },
+      "tiene_cotas": true,
+      "tiene_escala_grafica": false,
+      "calidad_plano": "alta",
+      "observaciones": "Plano típico para PIQUES 2 al 8. Ø4200mm fundación, Ø4000mm interior. TUNEL LINER PL.e=5mm. RADIER e=15cm. Escalera gatera. Anillos estructurales.",
+      "_tiles_procesados": 1,
+      "_tokens_entrada": 0,
+      "_tokens_salida": 0,
+      "recintos": [
+        {
+          "nombre": "TUNEL LINER",
+          "departamento": "TUNEL PRINCIPAL",
+          "area_m2": 12.57,
+          "confianza": 0.55,
+          "dimensiones_estimadas": {"largo_m": 4.0, "ancho_m": 3.14},
+          "_nota": "Sección circular Ø4000mm interior. Liner PL.e=5mm. NSF EL.597.94"
+        },
+        {
+          "nombre": "PIQUE 2 — ZONA TABLEROS",
+          "departamento": "PIQUES 2-8 (TÍPICO)",
+          "area_m2": 12.57,
+          "confianza": 0.62,
+          "dimensiones_estimadas": {"largo_m": 4.0, "ancho_m": 3.14},
+          "_nota": "Típico para piques 2-8. TDF + TDFyA + FAN.1/2/3"
+        },
+        {
+          "nombre": "PLATAFORMA DE DESCANSO",
+          "departamento": "PIQUES 2-8 (TÍPICO)",
+          "area_m2": 4.2,
+          "confianza": 0.58,
+          "dimensiones_estimadas": null,
+          "_nota": "Parrilla piso pletinas 32x5 @30. Baranda. En cada pique."
+        },
+        {
+          "nombre": "ANILLO INFERIOR",
+          "departamento": "PIQUES 2-8 (TÍPICO)",
+          "area_m2": null,
+          "confianza": 0.45,
+          "dimensiones_estimadas": null,
+          "_nota": "Anillo estructural inferior Ø4200mm fundación"
+        },
+        {
+          "nombre": "ANILLO SUPERIOR",
+          "departamento": "PIQUES 2-8 (TÍPICO)",
+          "area_m2": null,
+          "confianza": 0.45,
+          "dimensiones_estimadas": null,
+          "_nota": "Anillo estructural superior. C20x13.1 TIP."
+        },
+        {
+          "nombre": "ESCALERA GATERA",
+          "departamento": "PIQUES 2-8 (TÍPICO)",
+          "area_m2": null,
+          "confianza": 0.50,
+          "dimensiones_estimadas": null,
+          "_nota": "L6.5x4.78 @ -265. Soporte escala. Acceso vertical."
+        }
+      ],
+      "muros": {
+        "exterior_ml": 0,
+        "interior_ml": 0
+      },
+      "vanos": {
+        "puertas": [],
+        "ventanas": []
+      }
+    }
+  ],
+  "schedules": {
+    "1": {
+      "tiene_tabla": false,
+      "departamentos": [],
+      "nota": "Plano de elevación — sin tabla de áreas"
+    },
+    "2": {
+      "tiene_tabla": false,
+      "departamentos": [],
+      "nota": "Plano sección típica — sin tabla de áreas"
+    }
+  }
+}

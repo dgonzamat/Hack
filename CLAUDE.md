@@ -156,10 +156,31 @@ para evitar clasificaciones erróneas en recintos arquitectónicos.
 
 ---
 
+## ML — Reglas de experimentación
+
+**Baseline obligatorio:** el modelo actual es 94.0% CV accuracy, 1217 ejemplos, 680 vial.
+Nunca reportar mejora sin comparar contra este número con `make train-eval`.
+
+**Antes de cambiar el dataset:**
+1. Formular hipótesis explícita: *"agrego X ejemplos de categoría Y porque el modelo confunde Z"*
+2. Verificar char n-gram overlap con el vocabulario vial — si hay overlap, el ejemplo causará regresión
+3. Correr `make train-eval` antes y después — solo mergear si accuracy ≥ 94.0% o mejora medible
+
+**Error analysis — proceso para atacar FP/FN:**
+1. `python train_clasificador.py --eval` muestra confusion matrix
+2. Identificar la categoría con más errores (hoy: comun→vial 15%, seco→vial 12%)
+3. Inspeccionar ejemplos reales del `_training_candidates.log` para esa categoría
+4. Agregar solo ejemplos de planos reales, no sintéticos
+
+**Umbral de alerta:** si accuracy CV cae bajo 92% → no mergear, investigar causa raíz primero.
+
+**Nunca:** experimentar sin hipótesis, decir que el modelo mejoró sin métricas, agregar
+ejemplos sintéticos que compartan char n-grams con vial (causa regresión — PR #15).
+
+---
+
 ## Lo que NO hacer
 
-- No agregar ejemplos sintéticos seco/común/exterior que compartan char n-grams con vial
-  (causa regresión — lección aprendida PR #15)
 - No asumir área por defecto si `area_m2 is None` — omitir + listar en Trazabilidad
 - No cubica áreas comunes por defecto (usar `--incluir-comunes` si se necesita)
 - No commitear `_training_candidates.log` (está en .gitignore)

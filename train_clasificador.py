@@ -13,11 +13,16 @@ Uso:
 """
 
 import argparse
+import datetime as _dt
+import hashlib
+import json
 import pickle
 import re
+import sys
 import unicodedata
 from pathlib import Path
 
+import sklearn
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
@@ -25,6 +30,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_pre
 from sklearn.pipeline import FeatureUnion, Pipeline
 
 PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
+META_PATH = Path(__file__).parent / "clasificador_recintos.meta.json"
 
 
 def _norm(s: str) -> str:
@@ -606,13 +612,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     # Salas y equipos eléctricos en piques (SS/EE y sala de control)
     add(["SALA TABLEROS", "ZONA TABLEROS", "ZONA TDF",
-         "TDF 1", "TDF 2", "TDF 3", "TDF VIT", "TDF PROV",
+         "TDF 1", "TDF 2", "TDF 3", "TDF 4", "TDF 5",
+         "TDF VIT", "TDF VIT 1", "TDF VIT 2", "TDF VIT 3", "TDF VIT 4", "TDF VIT 5",
+         "TDF PROV", "TDFyA 1", "TDFyA 2", "TABLEROS AUXILIARES",
+         "TABLEROS DE FUERZA", "TABLEROS DE FUERZA Y AUXILIARES",
          "SALA TDF", "TABLERO DE DISTRIBUCION",
          "SALA VENTILACION", "CUARTO VENTILACION",
          "FAN PIQUE", "VENTILADOR TUNEL",
          "SALA BOMBAS PIQUE", "PLANTA ELEVADORA PIQUE",
          "SUBESTACION VITACURA", "SUBESTACION PROVIDENCIA",
          "SS VITACURA", "SS PROVIDENCIA",
+         "SS DE TRANSMISION VITACURA", "SS DE TRANSMISION PROVIDENCIA",
          "SALA SER LAT", "SALA CONTROL LAT"], "electrico")
 
     # Ventilación de galería eléctrica (jet fans + extractores)
@@ -643,6 +653,12 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "INYECCION DE CEMENTO", "JET GROUTING",
          "MEJORAMIENTO SUELO DINAMICO", "COMPACTACION DINAMICA",
          "COLCHON GRANULAR", "COLCHON DRENANTE"], "vial")
+
+    # Minería — piques y galerías mineras NO son LAT eléctrica
+    add(["PIQUE MINERO", "PIQUE MINA", "PIQUE EXTRACCION MINERAL",
+         "PIQUE VENTILACION MINA", "GALERIA MINERA", "GALERIA MINA",
+         "TUNEL MINERO", "TUNEL DE MINA", "RAMPA MINA",
+         "CHIMENEA MINERA", "RAJO ABIERTO", "TUNEL DE EXPLORACION MINERA"], "vial")
 
     return datos
 
@@ -715,7 +731,9 @@ def main() -> None:
 
     modelo = construir_modelo()
     scores = cross_val_score(modelo, X, y, cv=cv, scoring="accuracy")
-    print(f"\nCV accuracy: {scores.mean():.4f} ± {scores.std():.4f}")
+    cv_mean = float(scores.mean())
+    cv_std = float(scores.std())
+    print(f"\nCV accuracy: {cv_mean:.4f} ± {cv_std:.4f}")
 
     y_cv = cross_val_predict(modelo, X, y, cv=cv)
     print("\nConfusion matrix (CV):")
@@ -727,16 +745,48 @@ def main() -> None:
         pct = err / cm[i].sum() * 100
         print(f"{c:>10}  {row}   err={err}/{cm[i].sum()} ({pct:.0f}%)")
 
-    modelo.fit(X, y)
-    y_pred = modelo.predict(X)
-    print("\nClasificación sobre dataset completo:")
-    print(classification_report(y, y_pred, target_names=clases))
+    # CV per-class precision/recall/F1 — métricas honestas (no overfit)
+    print("\nCV precision/recall/F1 por clase (más honesto que sobre train):")
+    cv_report = classification_report(y, y_cv, target_names=clases, output_dict=True, zero_division=0)
+    print(classification_report(y, y_cv, target_names=clases, zero_division=0))
 
     if not args.eval:
         with open(PKL_PATH, "wb") as f:
-            pickle.dump(modelo, f, protocol=4)
+            pickle.dump(modelo.fit(X, y), f, protocol=4)
         kb = PKL_PATH.stat().st_size // 1024
-        print(f"Modelo guardado: {PKL_PATH}  ({kb} KB)")
+
+        # Metadata sidecar — no rompe pkl loading
+        dataset_hash = hashlib.sha256(
+            "\n".join(f"{n}|{c}" for n, c in datos).encode()
+        ).hexdigest()[:16]
+        meta = {
+            "trained_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+            "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "sklearn": sklearn.__version__,
+            "dataset_size": len(datos),
+            "dataset_hash": dataset_hash,
+            "classes": clases,
+            "class_counts": {c: y.count(c) for c in clases},
+            "cv_accuracy_mean": round(cv_mean, 4),
+            "cv_accuracy_std": round(cv_std, 4),
+            "cv_per_class": {
+                c: {k: round(v, 4) for k, v in cv_report[c].items() if k != "support"}
+                for c in clases
+            },
+            "model": {
+                "type": "TF-IDF char_wb(2,6) + word(1,2) + LogisticRegression",
+                "C": 10.0,
+                "class_weight": "balanced",
+                "confidence_threshold_used_in_inference": 0.60,
+            },
+            "edge_cases_pending": True,  # rellenado por _validar_edge_cases
+        }
+        META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        print(f"Modelo guardado:    {PKL_PATH}  ({kb} KB)")
+        print(f"Metadata guardada:  {META_PATH}")
+    else:
+        # En modo --eval, modelo aún se fit para edge cases
+        modelo.fit(X, y)
 
     _validar_edge_cases(modelo)
 
@@ -810,9 +860,29 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
         ("GALERIA DE EVACUACION", "vial"),
         ("CAMARA DE VENTILACION LONGITUDINAL", "vial"),
         ("TUBO PONIENTE", "vial"),
+        # Eléctrico — LAT subterránea (proyecto Vitacura-Providencia)
+        ("PIQUE 1", "electrico"),
+        ("PIQUE 9", "electrico"),
+        ("TUNEL LINER", "electrico"),
+        ("TDF VIT 1", "electrico"),
+        ("TDFyA 1", "electrico"),
+        ("SS VITACURA", "electrico"),
+        ("SS PROVIDENCIA", "electrico"),
+        ("JET FAN", "electrico"),
+        ("FAN.01", "electrico"),
+        ("FAN.23", "electrico"),
+        ("BROCAL DEFINITIVO", "electrico"),
+        ("PLATAFORMA 3", "electrico"),
+        ("ESCALA GATERA", "electrico"),
+        # Casos ambiguos — verificar que NO se confunden con electrico
+        ("TUNEL VEHICULAR", "vial"),     # túnel pero vial, no eléctrico
+        ("PIQUE MINERO", "vial"),         # pique pero minero (no LAT) → vial
+        ("CALZADA NORTE", "vial"),        # claramente vial
+        ("PISTA DE ATERRIZAJE", "vial"),  # pista aeroportuaria
     ]
     print("\nEdge cases:")
     ok = errores = 0
+    fallos = []
     for nombre, esperado in casos:
         n = _norm(nombre)
         pred = modelo.predict([n])[0]
@@ -822,8 +892,22 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
             ok += 1
         else:
             errores += 1
-        print(f"  {status} {nombre:<28} → {pred:<10} ({proba:.2f})  esperado: {esperado}")
+            fallos.append({"input": nombre, "esperado": esperado,
+                           "obtenido": pred, "proba": round(float(proba), 3)})
+        print(f"  {status} {nombre:<32} → {pred:<10} ({proba:.2f})  esperado: {esperado}")
     print(f"\n  {ok}/{ok+errores} edge cases correctos")
+
+    # Actualizar metadata con resultados edge cases
+    if META_PATH.exists():
+        try:
+            meta = json.loads(META_PATH.read_text())
+            meta["edge_cases_pending"] = False
+            meta["edge_cases_total"] = ok + errores
+            meta["edge_cases_passed"] = ok
+            meta["edge_cases_failed"] = fallos
+            META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        except (OSError, json.JSONDecodeError):
+            pass
 
 
 if __name__ == "__main__":

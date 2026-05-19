@@ -1,0 +1,18 @@
+# Precios indicativos Chile — Infraestructura Electrica Subterranea (tuneles/piques)
+# Fuente: ONDAC Q1 2026 + estimados mercado — verificar con cotizacion local antes de uso comercial
+# AVISO: valores de equipos electricos (TDF, FAN, luminarias) son estimados de mercado.
+#        Solicitar cotizacion a proveedor certificado SEC antes de usar en licitacion.
+# Fecha actualizacion: 2026-04
+partida,unidad,precio_clp,fuente,fecha
+excavacion_pique_circular,m3,85000,ONDAC 2026Q1,2026-04
+liner_metalico_pl5mm,m2,120000,ONDAC+estimado,2026-04
+radier_hormigon_h25_e15cm,m2,35000,ONDAC 2026Q1,2026-04
+parrilla_piso_pletinas,m2,65000,ONDAC+estimado,2026-04
+baranda_tubo_acero,ml,38000,ONDAC 2026Q1,2026-04
+tablero_tdf_instalado,un,2500000,estimado mercado,2026-04
+tablero_tdfya_instalado,un,1800000,estimado mercado,2026-04
+ventilador_fan_380v,un,950000,estimado mercado,2026-04
+luminaria_led_16w_tunel,un,85000,ONDAC+estimado,2026-04
+escalera_gatera_acero,ml,45000,ONDAC+estimado,2026-04
+bandeja_cubierta_200x60,ml,28000,ONDAC 2026Q1,2026-04
+anillo_metalico_d4200,un,680000,estimado mercado,2026-04

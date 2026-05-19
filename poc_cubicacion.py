@@ -739,6 +739,9 @@ def main() -> None:
                         help="Fracción IVA (default 0.19 Chile)")
     parser.add_argument("--incluir-comunes", action="store_true",
                         help="Incluye áreas comunes en cubicación (default false)")
+    parser.add_argument("--tipo", default="arquitectonico",
+                        choices=["arquitectonico", "vial", "electrico"],
+                        help="Tipo de proyecto para cubicación (default arquitectonico)")
     parser.add_argument("--secciones", default=None,
                         help="YAML con secciones transversales del proyecto (ej: secciones_civiles.yaml)")
     parser.add_argument("--reattribute", action="store_true",
@@ -820,7 +823,7 @@ def main() -> None:
 
     if args.excel:
         try:
-            from cubicador import cubicar
+            from cubicador import cubicar, cubicar_electrico
             from presupuesto import cargar_precios, presupuestar, imprimir_presupuesto
             from excel import exportar_excel
         except ImportError as e:
@@ -834,7 +837,12 @@ def main() -> None:
             except json.JSONDecodeError as e:
                 print(f"  WARN: --alturas JSON inválido ({e}), ignorando")
 
-        ruta_precios = Path(args.precios)
+        # Precios: electrico usa precios_electrico.csv por defecto cuando --tipo electrico
+        if args.tipo == "electrico" and args.precios == "precios_cl.csv":
+            precios_path = "precios_electrico.csv"
+        else:
+            precios_path = args.precios
+        ruta_precios = Path(precios_path)
         if not ruta_precios.is_absolute():
             ruta_precios = Path(__file__).parent / ruta_precios
         if not ruta_precios.exists():
@@ -857,13 +865,21 @@ def main() -> None:
             with open(args.secciones, encoding="utf-8") as _f:
                 secciones = yaml.safe_load(_f)
 
-        cubicacion = cubicar(
-            primera,
-            altura_global=args.altura,
-            alturas_override=alturas_override,
-            incluir_comunes=args.incluir_comunes,
-            secciones=secciones,
-        )
+        if args.tipo == "electrico":
+            print(f"  Modo: cubicación eléctrica — altura pique {args.altura}m\n")
+            cubicacion = cubicar_electrico(
+                primera,
+                altura_global=args.altura,
+                alturas_override=alturas_override,
+            )
+        else:
+            cubicacion = cubicar(
+                primera,
+                altura_global=args.altura,
+                alturas_override=alturas_override,
+                incluir_comunes=args.incluir_comunes,
+                secciones=secciones,
+            )
         pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
         imprimir_presupuesto(pres)
 

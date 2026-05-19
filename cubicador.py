@@ -1033,4 +1033,133 @@ def reattribute_by_schedule(resultado: dict, schedule: dict) -> dict:
             **mejor_swap,
         }
 
+
+# ─── Cubicación infraestructura eléctrica subterránea ─────────────────────────
+
+_ELEC_PIQUE = re.compile(r"\bPIQUE\b")
+_ELEC_TUNEL = re.compile(r"\bTUNEL\b|\bLINER\b")
+_ELEC_PLATAFORMA = re.compile(r"\bPLATAFORMA\b")
+_ELEC_TDF = re.compile(r"\bTDF\b")          # también matchea TDFyA — checar TDFyA primero
+_ELEC_TDFyA = re.compile(r"\bTDFyA\b")
+_ELEC_FAN = re.compile(r"\bFAN\b")
+_ELEC_LUMINARIA = re.compile(r"\bLUMINARIA\b")
+_ELEC_ANILLO = re.compile(r"\bANILLO\b")
+_ELEC_ESCALERA = re.compile(r"\bESCALERA\b")
+_ELEC_BANDEJA = re.compile(r"\bBANDEJA\b")
+
+
+def cubicar_electrico(
+    resultado: dict,
+    altura_global: float = 20.0,
+    alturas_override: Optional[dict] = None,
+) -> dict:
+    """
+    Cubica infraestructura de túnel eléctrico: piques, liner, radier, tableros, fans, etc.
+
+    Devuelve el mismo formato que cubicar():
+      - partidas: [{partida, unidad, cantidad, desglose}]
+      - clasificacion_recintos: [...]
+      - recintos_sin_area: [...]
+      - resumen_areas: {confiable_m2, incierta_m2, total_m2}
+      - tipo: "electrico"
+    """
+    recintos = resultado.get("recintos", [])
+    alturas_override = alturas_override or {}
+
+    acum: dict[str, dict] = {}
+    clasif = []
+    recintos_sin_area: list[str] = []
+    area_total = 0.0
+
+    def _add(key: str, desc: str, unidad: str, cant: float, nota: str) -> None:
+        if key not in acum:
+            acum[key] = {"partida": key, "descripcion": desc, "unidad": unidad, "cantidad": 0.0, "desglose": []}
+        acum[key]["cantidad"] += cant
+        acum[key]["desglose"].append({"recinto": nota, "cantidad": round(cant, 2)})
+
+    for rec in recintos:
+        nombre = rec.get("nombre", "?")
+        n = _norm(nombre)
+        area = area_efectiva(rec)
+        h = alturas_override.get(nombre, altura_global)
+        conf = rec.get("confianza") or 0
+
+        clasif.append({
+            "nombre": nombre,
+            "departamento": rec.get("departamento"),
+            "categoria": "vial",
+            "area_m2": area,
+            "confianza": conf,
+        })
+
+        if area is None:
+            recintos_sin_area.append(nombre)
+        else:
+            area_total += area
+
+        # ── Pique (shaft): excavación + liner + radier ─────────────────────────
+        if _ELEC_PIQUE.search(n) and not _ELEC_PLATAFORMA.search(n):
+            if area:
+                r = math.sqrt(area / math.pi)
+                perim = 2 * math.pi * r
+                _add("excavacion_pique_circular", "Excavación pique circular", "m3",
+                     area * h, f"{nombre} ({area:.1f}m²×{h:.0f}m)")
+                _add("liner_metalico_pl5mm", "Liner metálico PL e=5mm", "m2",
+                     perim * h, f"{nombre} (perim {perim:.1f}ml×{h:.0f}m)")
+                _add("radier_hormigon_h25_e15cm", "Radier hormigón H25 e=15cm", "m2",
+                     area, nombre)
+
+        # ── Tunel liner independiente ──────────────────────────────────────────
+        elif _ELEC_TUNEL.search(n) and not _ELEC_PIQUE.search(n):
+            if area:
+                r = math.sqrt(area / math.pi)
+                perim = 2 * math.pi * r
+                _add("liner_metalico_pl5mm", "Liner metálico PL e=5mm", "m2",
+                     perim * h, f"{nombre}")
+                _add("radier_hormigon_h25_e15cm", "Radier hormigón H25 e=15cm", "m2",
+                     area, nombre)
+
+        # ── Plataformas: parrilla + baranda ────────────────────────────────────
+        if _ELEC_PLATAFORMA.search(n) and area:
+            _add("parrilla_piso_pletinas", "Parrilla piso pletinas 32x5@30", "m2", area, nombre)
+            r = math.sqrt(area / math.pi) if area > 0 else 2.0
+            _add("baranda_tubo_acero", "Baranda tubo acero galvanizado", "ml",
+                 2 * math.pi * r, nombre)
+
+        # ── Tableros ───────────────────────────────────────────────────────────
+        if _ELEC_TDFyA.search(n):
+            _add("tablero_tdfya_instalado", "Tablero TDFyA instalado", "un", 1, nombre)
+        elif _ELEC_TDF.search(n):
+            _add("tablero_tdf_instalado", "Tablero TDF instalado", "un", 1, nombre)
+
+        # ── Equipos ────────────────────────────────────────────────────────────
+        if _ELEC_FAN.search(n):
+            _add("ventilador_fan_380v", "Ventilador FAN 380V instalado", "un", 1, nombre)
+        if _ELEC_LUMINARIA.search(n):
+            _add("luminaria_led_16w_tunel", "Luminaria LED 16W túnel", "un", 1, nombre)
+        if _ELEC_ANILLO.search(n):
+            _add("anillo_metalico_d4200", "Anillo metálico Ø4200mm", "un", 1, nombre)
+        if _ELEC_ESCALERA.search(n):
+            _add("escalera_gatera_acero", "Escalera gatera acero L6.5x4.78", "ml", h, nombre)
+        if _ELEC_BANDEJA.search(n):
+            _add("bandeja_cubierta_200x60", "Bandeja cubierta 200×60mm", "ml", h, nombre)
+
+    partidas = [
+        {**v, "cantidad": round(v["cantidad"], 2)}
+        for v in acum.values()
+    ]
+
+    return {
+        "partidas": partidas,
+        "clasificacion_recintos": clasif,
+        "vanos_detalle": [],
+        "recintos_sin_area": recintos_sin_area,
+        "resumen_areas": {
+            "confiable_m2": area_total,
+            "incierta_m2": 0.0,
+            "total_m2": area_total,
+        },
+        "tipo": "electrico",
+    }
+
     return {"aplicado": False, "razon": f"sin mejora >=10% (error inicial {error_inicial:.1f}%)"}

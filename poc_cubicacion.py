@@ -872,6 +872,17 @@ def main() -> None:
                 altura_global=args.altura,
                 alturas_override=alturas_override,
             )
+            # Modo electrico: usar formato licitacion en lugar del Excel estándar
+            try:
+                from excel_licitacion import exportar_licitacion
+                ruta_xlsx = exportar_licitacion(cubicacion, primera, args.excel)
+                print(f"  Excel licitación guardado: {ruta_xlsx}\n")
+            except Exception as e:
+                print(f"  WARN: excel_licitacion falló ({e}), usando formato estándar")
+                pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
+                imprimir_presupuesto(pres)
+                ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
+                print(f"  Excel guardado: {ruta_xlsx}\n")
         else:
             cubicacion = cubicar(
                 primera,
@@ -880,11 +891,10 @@ def main() -> None:
                 incluir_comunes=args.incluir_comunes,
                 secciones=secciones,
             )
-        pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
-        imprimir_presupuesto(pres)
-
-        ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
-        print(f"  Excel guardado: {ruta_xlsx}\n")
+            pres = presupuestar(cubicacion, precios, gg_utilidad=args.gg_utilidad, iva=args.iva)
+            imprimir_presupuesto(pres)
+            ruta_xlsx = exportar_excel(primera, sched, cubicacion, pres, args.excel)
+            print(f"  Excel guardado: {ruta_xlsx}\n")
 
 
 if __name__ == "__main__":

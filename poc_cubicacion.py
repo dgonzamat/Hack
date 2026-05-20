@@ -892,12 +892,15 @@ def main() -> None:
                       f"{len(_tramos_data or [])} tramos (datos estructurados)\n")
             else:
                 print(f"  Modo: cubicación eléctrica — altura pique {args.altura}m (legacy)\n")
+            _dp = datos.get("datos_proyecto", {}) if args.from_json else {}
             cubicacion = cubicar_electrico(
                 primera,
                 altura_global=args.altura,
                 alturas_override=alturas_override,
                 piques=_piques_data,
                 tramos_tunel=_tramos_data,
+                diametro_pique_m=float(_dp.get("diametro_pique_m", 4.0)),
+                diametro_tunel_m=float(_dp.get("diametro_tunel_m", 2.21)),
             )
             # Pasar datos_proyecto al cubicacion para el Excel (supuesto n_tuneles, UF, etc.)
             if args.from_json:

@@ -77,6 +77,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SALA ACS", "CUARTO ACS", "SALA CLIMATIZACION HIDRONICA",
          "CUARTO TERMOTANQUES", "SALA ESTANQUES AGUA"], "humedo")
 
+    # Humedo — refuerzo para baños con calificadores ambiguos y cocinas híbridas
+    # (reduce humedo→seco: COCINA COMEDOR, PIEZA LAVADO → seco)
+    # NOTA: evitar SALA/CUARTO + EDIFICIO aquí — pertenecen a comun, no humedo
+    add(["DUCHA PRIVADA", "DUCHA PERSONAL",
+         "BANO ACCESO", "SSHH PERSONAL", "BANO PERSONAL",
+         "BANO INDIVIDUAL", "BANO PROPIO",
+         "COCINA DIARIA", "COCINA FAMILIAR",
+         "COCINA COMEDOR PRIVADO", "ESPACIO COCINA COMEDOR",
+         "CUARTO LAVADO INTERNO", "PIEZA LAVADO INTERIOR",
+         "LAVADO INTERIOR", "ZONA LAVADO PRIVADA"], "humedo")
+
     add(["SH", "SSHH", "S.H.", "S.S.H.H.", "SS.HH.", "SS HH",
          "SERV HIG", "SERVICIO HIGIENICO", "SERVICIO HIGIÉNICO",
          "SERV. HIG.",
@@ -134,6 +145,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SALA DE PLANCHA", "SALA INFANTIL", "SALA JUEGOS INFANTIL",
          "SALA MULTIMEDIA PRIVADA", "SALA DE LECTURA PRIVADA"], "seco")
 
+    # Seco residencial — ancla SALA/SALON/CUARTO en contexto privado
+    # (reduce seco→vial: model confunde SALA sin calificador con SALA TECNICA TUNEL)
+    add(["SALON", "SALON PRIVADO", "SALON RESIDENCIAL", "SALON FAMILIAR",
+         "SALA FAMILIAR", "SALA PRIVADA", "SALA ENTRETENIMIENTO", "SALA ENTRETENCION",
+         "SALON COMEDOR PRIVADO", "SALA CINE PRIVADA",
+         "CUARTO TV", "CUARTO TELEVISION", "CUARTO MULTIMEDIA",
+         "SALA HOBBY", "ESPACIO LIVING", "ESPACIO COMEDOR", "ZONA LIVING",
+         "SALITA", "SALITA DE ESTAR", "SALON DE ESTAR",
+         "CUARTO PRIVADO", "PIEZA PRIVADA", "ESPACIO PRIVADO",
+         "VESTIDOR INTERIOR", "CLOSET PRINCIPAL"], "seco")
+
     # ── EXTERIOR ─────────────────────────────────────────────────────────────
     add(["TERRAZA", "BALCON", "BALCÓN", "LOGGIA",
          "PATIO", "PATIO EXTERIOR", "PATIO INTERIOR", "PATIO DE SERVICIO",
@@ -143,6 +165,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "QUINCHO", "PARRILLA", "ASADOR", "SOLARIUM",
          "PISCINA", "AREA PISCINA", "TERRAZA PISCINA",
          "ZONA VERDE", "AREA VERDE"], "exterior")
+
+    # Exterior residencial privado — ancla términos cortos que se confunden con vial
+    # (reduce exterior→vial: DECK, JARDIN, QUINCHO, SOLARIUM, AREA VERDE → vial)
+    add(["DECK PRIVADO", "DECK MADERA", "TERRAZA MADERA",
+         "JARDIN PRIVADO", "JARDIN INTERIOR", "JARDIN DEPTO",
+         "PATIO PRIVADO DEPTO", "PATIO INTERIOR PRIVADO",
+         "LOGGIA PRIVADA", "LOGGIA DEPTO", "LOGGIA EXTERIOR DEPTO",
+         "ANTEJARDIN RESIDENCIAL", "JARDIN RESIDENCIAL",
+         "AREA VERDE PRIVADA", "ZONA VERDE PRIVADA", "ZONA AJARDINADA",
+         "AREA PARRILLA PRIVADA", "ZONA PARRILLA PRIVADA",
+         "AREA EXTERIOR PRIVADA", "ZONA EXTERIOR DEPTO"], "exterior")
     for base in ["TERRAZA", "BALCON", "PATIO"]:
         for n in ["1", "2", "3"]:
             add([f"{base} {n}"], "exterior")
@@ -164,6 +197,18 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "CORREDOR DE DISTRIBUCIÓN", "CIRCULACION", "CIRCULACIÓN",
          "AREA DE CIRCULACION", "ÁREA DE CIRCULACIÓN",
          "HALL CIRCULACION", "DISTRIBUCION", "DISTRIBUCIÓN"], "comun")
+
+    # Circulación horizontal de edificio con calificador de piso/edificio
+    # (reduce comun→vial: PASILLO, CORREDOR, ACCESO sin contexto → vial)
+    add(["CORREDOR PISO", "CORREDOR EDIFICIO", "CORREDOR INTERIOR",
+         "CORREDOR COMUN", "CORREDOR INTERIOR PISO",
+         "PASILLO PISO", "PASILLO EDIFICIO", "PASILLO INTERIOR PISO",
+         "PASILLO COMUN PISO", "PASILLO INTERIOR EDIFICIO",
+         "ACCESO DEPTO", "ACCESO PRIVADO EDIFICIO", "ACCESO VECINOS",
+         "CIRCULACION PISO", "CIRCULACION HORIZONTAL",
+         "VESTIBULO PISO", "VESTIBULO EDIFICIO",
+         "RECIBIDOR PISO", "DISTRIBUCION PISO",
+         "HALL PISO N"], "comun")
 
     add(["ESCALERA", "CAJA DE ESCALERA", "ESCALERA INTERIOR",
          "ESCALERA PRINCIPAL", "ESCALERA SERVICIO",
@@ -225,6 +270,15 @@ def _generar_dataset() -> list[tuple[str, str]]:
     add(["PORTERIA EDIFICIO", "GUARDIA", "CASETA GUARDIA", "SALA GUARDIA",
          "OFICINA ADMINISTRACION", "SALA ADMINISTRACION", "GERENCIA EDIFICIO",
          "SALON DE DIRECTORIO", "SALA DE DIRECTORIO EDIFICIO"], "comun")
+
+    # Comun building-service rooms — ancla términos que se confunden con seco
+    # (reduce comun→seco: SALA MULTIUSO, OFICINA ADMINISTRACION → seco)
+    add(["SALA MULTIUSO EDIFICIO", "SALA POLIVALENTE EDIFICIO",
+         "SALA USOS MULTIPLES EDIFICIO", "SALA EVENTOS COMUN",
+         "OFICINA CONSERJE", "CONSERJE", "ADMINISTRACION EDIFICIO",
+         "SALA GUARDIA EDIFICIO", "PORTERIA COMUN",
+         "SALA DIRECTORIO EDIFICIO", "SALA REUNION EDIFICIO",
+         "SALA COMITE EDIFICIO", "SALA COPROPIETARIOS"], "comun")
 
     # Baño / servicios comunes (no de depto)
     add(["BANO COMUN", "BANO VISITAS EDIFICIO", "SSHH COMUN", "SSHH PISO",
@@ -571,6 +625,31 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "APARCA BICICLETAS", "SOPORTE BICICLETAS VIAL",
          "CICLOINFRAESTRUCTURA", "SENDA COMPARTIDA"], "vial")
 
+    # Vial — tableros/tramos/piques con calificador explícito para separar de electrico
+    # (reduce vial→electrico: TABLERO, TRAMO SUBTERRANEO, PIQUE DE CONSTRUCCION → electrico)
+    add(["TABLERO PUENTE NUEVO", "TABLERO CARRETERO", "TABLERO VIAL",
+         "TABLERO VOLADIZO PUENTE", "TABLERO MIXTO PUENTE", "TABLERO HORMIGON",
+         "TABLERO PREFABRICADO PUENTE", "TABLERO LOSA MIXTA",
+         "TRAMO CARRETERO", "TRAMO VIARIO", "TRAMO CARRETERA",
+         "TRAMO SUBTERRANEO CARRETERO", "TRAMO ELEVADO CARRETERO",
+         "TRAMO AUTOPISTA", "TRAMO URBANO VIAL", "TRAMO VIAL",
+         "SECTOR SUBTERRANEO VIAL", "TRAMO SUBTERRANEO VEHICULAR",
+         "PIQUE CONSTRUCTIVO VIAL", "POZO ACCESO VIAL", "POZO CONSTRUCCION VIAL",
+         "PLATAFORMA VIAL", "PLATAFORMA CARRETERO", "PLATAFORMA TRABAJO VIAL",
+         "ZONA TRABAJO VIAL", "AREA TRABAJO VIAL",
+         "PLATAFORMA FERROVIARIA ESTACION", "ANDENES METRO",
+         "TRAMO METRO SUBTERRANEO", "TRAMO METRO ELEVADO"], "vial")
+
+    # Vial — salas de servicio tunel con calificador para separar de comun
+    # (reduce vial→comun: SALA CCI, SALA TECNICA TUNEL → comun)
+    add(["SALA CCI CARRETERO", "SALA TECNICA CARRETERA", "SALA CCI CONCESION",
+         "SALA CONTROL TUNEL VIAL", "SALA MONITOREO CARRETERA",
+         "SALA OPERACIONES CARRETERA", "SALA TECNICA CONCESIONARIA",
+         "AREA SERVICIO CARRETERO", "SECTOR SERVICIO VIAL",
+         "SALA TECNICA CONCESION", "SALA MAQUINAS TUNEL VIAL",
+         "RELLENO ESTRUCTURAL", "RELLENO SELECCIONADO VIAL",
+         "RELLENO GRANULAR", "MATERIAL DE RELLENO"], "vial")
+
     # ── Protección fluvial y costera (MOP / DGA) ──────────────────────────────
     add(["PROTECCION DE RIBERA", "DEFENSA FLUVIAL", "MURO RIBERA",
          "ENROCADO RIBERA", "ESCOLLERA RIBERA",
@@ -624,6 +703,19 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SS VITACURA", "SS PROVIDENCIA",
          "SS DE TRANSMISION VITACURA", "SS DE TRANSMISION PROVIDENCIA",
          "SALA SER LAT", "SALA CONTROL LAT"], "electrico")
+
+    # Electrico — salas/shafts/escaleras con calificador para separar de comun
+    # (reduce electrico→comun: SHAFT ELECTRICO, SALA VENTILACION, ESCALERA GATERA → comun)
+    add(["SHAFT ALTA TENSION", "SHAFT LAT", "SHAFT CABLES AT",
+         "SHAFT GALERIA ELECTRICA", "SHAFT CABLES TUNEL",
+         "ESCALERA GATERA PIQUE", "ESCALERA GATERA TUNEL",
+         "ESCALERA SERVICIO PIQUE", "ESCALERA ACCESO PIQUE",
+         "ESCALA PIQUE", "ESCALERA INTERIOR PIQUE",
+         "SALA VENTILACION PIQUE", "CUARTO VENTILACION PIQUE",
+         "SALA VENTILACION TUNEL ELECTRICO", "CUARTO VENTILACION ELECTRICO",
+         "SALA VENTILACION LAT", "VENTILACION GALERIA ELECTRICA",
+         "CUARTO ELECTRICO PIQUE", "CUARTO ELECTRICO TUNEL",
+         "SALA TECNICA PIQUE", "SALA TECNICA LAT"], "electrico")
 
     # Ventilación de galería eléctrica (jet fans + extractores)
     # IDs FAN1..FAN23 vienen del proyecto Vitacura (STM38109 Tabla 4.2)

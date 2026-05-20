@@ -10,7 +10,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-# ── UF referencial mayo 2026 ──────────────────────────────────────────────────
+# ── UF referencial mayo 2026 (usado como fallback — pasar uf_clp= para sobreescribir) ──
 UF_CLP = 38_500
 
 # ── Fills ─────────────────────────────────────────────────────────────────────
@@ -72,8 +72,9 @@ _PRECIO_SEC7 = {
 }
 
 
-def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
+def cargar_precios_uf(csv_path: str | Path, uf_clp: float | None = None) -> dict[str, float]:
     """Carga precios desde CSV y los convierte a UF. Ignora líneas comentadas (#)."""
+    tasa = uf_clp if uf_clp else UF_CLP
     precios: dict[str, float] = {}
     path = Path(csv_path)
     if not path.exists():
@@ -82,7 +83,7 @@ def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
         for row in csv.DictReader(filter(lambda l: not l.startswith("#"), f)):
             try:
                 precios[row["partida"].strip()] = round(
-                    float(row["precio_clp"]) / UF_CLP, 4
+                    float(row["precio_clp"]) / tasa, 4
                 )
             except (KeyError, ValueError):
                 pass
@@ -453,7 +454,7 @@ _PIQUE1_ESCENARIOS = [
 ]
 
 
-def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
+def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict, uf_clp: float | None = None) -> None:
     ws = wb.create_sheet("Análisis de Precios")
     ws.column_dimensions["A"].width = 40
     ws.column_dimensions["B"].width = 10
@@ -511,10 +512,13 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         nonlocal row
         row += 1
 
+    _uf = uf_clp if uf_clp else UF_CLP
+
     # ── Encabezado ────────────────────────────────────────────────────────────
     title("ANÁLISIS DE PRECIOS — TÚNEL LAT VITACURA-PROVIDENCIA")
+    _uf_src = "CLI --uf-clp" if uf_clp else "ref. mayo 2026 — usar --uf-clp para actualizar"
     ws.cell(row=row, column=1,
-            value=f"UF referencial: {UF_CLP:,} CLP (mayo 2026) | Generado: {__import__('datetime').date.today()}")
+            value=f"UF usada: ${_uf:,.0f} CLP ({_uf_src}) | ⚠ Actualizar con UF Banco Central al día de oferta | Generado: {__import__('datetime').date.today()}")
     ws.merge_cells(f"A{row}:F{row}")
     ws.cell(row=row, column=1).font = Font(italic=True, size=8)
     row += 1
@@ -581,7 +585,7 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         data_row([
             desc, unidad,
             f"{uf_min:.2f}", f"{uf_max:.2f}",
-            f"${int(uf_min*UF_CLP):,} – ${int(uf_max*UF_CLP):,}",
+            f"${int(uf_min*_uf):,} – ${int(uf_max*_uf):,}",
             ref,
         ])
     blank()
@@ -631,8 +635,8 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
 
     for i, v in enumerate([
         "TOTAL ÍTEMS CUBICADOS", "", "", "",
-        f"{total_min:,.0f} UF  (~${int(total_min*UF_CLP/1e6):.0f}M CLP)",
-        f"{total_max:,.0f} UF  (~${int(total_max*UF_CLP/1e6):.0f}M CLP)",
+        f"{total_min:,.0f} UF  (~${int(total_min*_uf/1e6):.0f}M CLP)",
+        f"{total_max:,.0f} UF  (~${int(total_max*_uf/1e6):.0f}M CLP)",
     ], 1):
         c = ws.cell(row=row, column=i, value=v)
         c.font = _FONT_BOLD; c.fill = _FILL_SECTION; c.border = _BORDER_THIN
@@ -1076,8 +1080,12 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
          "≈1.6% del Directo"),
         ("9.9", "TOTAL GASTOS GENERALES", "—", "—", "—",
          "6,200 UF (≈8.3% del Directo) — norma 8-12%"),
-        ("9.10", "Utilidad Contratista", "1 gl", "—", "8,000",
-         "≈11% del Directo — norma 8-12% en obras especializadas"),
+        ("9.10", "Utilidad Contratista", "1 gl", "—", "var.",
+         "DECISIÓN COMERCIAL del oferente — NO es costo recuperable. "
+         "Norma 8-15% del Costo Directo en obras especializadas. "
+         "Valor referencial 8.000 UF (~11%). "
+         "Ajustar según competitividad, riesgo y estructura de la empresa. "
+         "Usar --utilidad-uf para fijar valor al generar el Excel."),
         ("9.11", "RESUMEN OFERTA",
          "Directo: 74.843 UF | Indirecto: 31.680 UF | GG: 6.200 UF | "
          "Utilidad: 8.000 UF | Neto: 120.723 UF | IVA: 22.937 UF",
@@ -1124,20 +1132,25 @@ _COSTOS_IND_REF = {
     47: (1, 1, 3200, "Aporte oficina central ~4.4% directo"),
     48: (1, 1, 1800, "Gastos financieros ~2.5% directo"),
     49: (1, 1, 1200, "Boletas garantia + seguros ~1.6% directo"),
-    # 3 Utilidades
-    53: (1, 1, 8000, "Utilidad contratista ~11% directo"),
+    # 3 Utilidades (placeholder — sobreescrito por utilidad_uf en _fill_costos_indirectos_sheet)
+    53: (1, 1, 8000, "Utilidad contratista — DECISIÓN COMERCIAL"),
 }
 
 
-def _fill_costos_indirectos_sheet(ws) -> None:
+def _fill_costos_indirectos_sheet(ws, utilidad_uf: float | None = None) -> None:
     """Rellena cantidades, tiempos y precios referenciales en B) Detalle C. Ind.
 
     Marca celdas en salmón (_FILL_PRICE_REF) para indicar valor estimado.
     Mantiene fórmulas G = D*E*F del template — solo escribe D, E, F.
+    utilidad_uf: si se pasa, sobreescribe el precio referencial de la fila 53 (Utilidad).
     """
     if ws is None:
         return
-    for fila, (cant, tiempo, precio_uf, nota) in _COSTOS_IND_REF.items():
+    costos = dict(_COSTOS_IND_REF)
+    if utilidad_uf is not None:
+        cant, tiempo, _, nota = costos[53]
+        costos[53] = (cant, tiempo, utilidad_uf, nota)
+    for fila, (cant, tiempo, precio_uf, nota) in costos.items():
         # D = cantidad, E = tiempo, F = precio unitario UF
         for col, val in [(4, cant), (5, tiempo), (6, precio_uf)]:
             c = ws.cell(row=fila, column=col, value=val)
@@ -1168,13 +1181,19 @@ def exportar_licitacion(
     ruta_out: str | Path,
     template: str | Path | None = None,
     precios_csv: str | Path | None = None,
+    uf_clp: float | None = None,
+    utilidad_uf: float | None = None,
 ) -> Path:
     """
     Genera Excel en formato licitación con cantidades y precios referenciales.
 
-    template:    path al .xlsx del mandante (opcional).
-    precios_csv: path al CSV de precios (default: precios_electrico.csv junto al módulo).
-                 Precios en CLP → se convierten a UF. Se marcan en salmón (referenciales).
+    template:     path al .xlsx del mandante (opcional).
+    precios_csv:  path al CSV de precios (default: precios_electrico.csv junto al módulo).
+                  Precios en CLP → se convierten a UF. Se marcan en salmón (referenciales).
+    uf_clp:       valor UF en CLP al día de oferta (default 38_500 ref. mayo 2026).
+                  Usar --uf-clp CLI arg o pasar Banco Central value del día.
+    utilidad_uf:  utilidad del contratista en UF (decisión comercial, default 8_000).
+                  Usar --utilidad-uf CLI arg para fijar margen propio.
     Devuelve Path del archivo generado.
     """
     ruta_out = Path(ruta_out)
@@ -1192,7 +1211,7 @@ def exportar_licitacion(
     # Cargar precios referenciales
     if precios_csv is None:
         precios_csv = Path(__file__).parent / "precios_electrico.csv"
-    precios_uf = cargar_precios_uf(precios_csv)
+    precios_uf = cargar_precios_uf(precios_csv, uf_clp=uf_clp)
 
     qty_map = _build_qty_map(cubicacion)
 
@@ -1203,7 +1222,7 @@ def exportar_licitacion(
 
     # Llenar costos indirectos referenciales si la hoja existe (viene del template)
     ws_ind = wb["B) Detalle C. Ind., GG y Utilid"] if "B) Detalle C. Ind., GG y Utilid" in wb.sheetnames else None
-    _fill_costos_indirectos_sheet(ws_ind)
+    _fill_costos_indirectos_sheet(ws_ind, utilidad_uf=utilidad_uf)
 
     # Leyenda de colores en Resumen Oferta
     ws_res = wb["Resumen Oferta"]
@@ -1217,12 +1236,19 @@ def exportar_licitacion(
         c.fill = fill
         c.font = Font(size=8, italic=True)
 
+    # Nota UF en Resumen Oferta
+    _uf_val = uf_clp if uf_clp else UF_CLP
+    _uf_src = f"CLI --uf-clp" if uf_clp else "ref. mayo 2026"
+    ws_res.cell(row=leyenda_row + 1, column=1,
+                value=f"UF usada: ${_uf_val:,.0f} CLP ({_uf_src}) — verificar con Banco Central al día de oferta")
+    ws_res.cell(row=leyenda_row + 1, column=1).font = Font(size=8, italic=True, color="C00000")
+
     # Eliminar hojas preexistentes del template antes de regenerar
     for sheet_name in ("Análisis de Precios", "Memoria de Cálculo"):
         if sheet_name in wb.sheetnames:
             del wb[sheet_name]
 
-    _build_analisis_sheet(wb, cubicacion)
+    _build_analisis_sheet(wb, cubicacion, uf_clp=uf_clp)
     _build_memoria_calculo_sheet(wb, cubicacion, resultado)
 
     # Forzar a Excel/LibreOffice a recalcular todas las fórmulas al abrir

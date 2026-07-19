@@ -748,6 +748,12 @@ def main() -> None:
                         help="Aplicar reattribution post-hoc usando schedule")
     parser.add_argument("--template", default=None, metavar="PATH",
                         help="Template .xlsx del mandante para modo --tipo electrico")
+    parser.add_argument("--uf-clp", type=float, default=None, metavar="VALOR",
+                        help="Valor UF en CLP al día de oferta (default 38500 ref. mayo 2026). "
+                             "Obtener de Banco Central de Chile al día exacto de presentación.")
+    parser.add_argument("--utilidad-uf", type=float, default=None, metavar="UF",
+                        help="Utilidad del contratista en UF (decisión comercial, default 8000 ref.). "
+                             "No es costo recuperable — el oferente fija su propio margen.")
     args = parser.parse_args()
 
     # ── Modo --from-json: carga recintos pre-extraídos, omite PDF y API ──────────
@@ -886,12 +892,15 @@ def main() -> None:
                       f"{len(_tramos_data or [])} tramos (datos estructurados)\n")
             else:
                 print(f"  Modo: cubicación eléctrica — altura pique {args.altura}m (legacy)\n")
+            _dp = datos.get("datos_proyecto", {}) if args.from_json else {}
             cubicacion = cubicar_electrico(
                 primera,
                 altura_global=args.altura,
                 alturas_override=alturas_override,
                 piques=_piques_data,
                 tramos_tunel=_tramos_data,
+                diametro_pique_m=float(_dp.get("diametro_pique_m", 4.0)),
+                diametro_tunel_m=float(_dp.get("diametro_tunel_m", 2.21)),
             )
             # Pasar datos_proyecto al cubicacion para el Excel (supuesto n_tuneles, UF, etc.)
             if args.from_json:
@@ -905,7 +914,9 @@ def main() -> None:
             try:
                 from excel_licitacion import exportar_licitacion
                 ruta_xlsx = exportar_licitacion(cubicacion, primera, args.excel,
-                                                template=args.template)
+                                                template=args.template,
+                                                uf_clp=args.uf_clp,
+                                                utilidad_uf=args.utilidad_uf)
                 print(f"  Excel licitación guardado: {ruta_xlsx}\n")
             except Exception as e:
                 print(f"  WARN: excel_licitacion falló ({e}), usando formato estándar")

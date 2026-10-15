@@ -1,0 +1,67 @@
+{
+  "trained_at": "2026-05-20T00:57:33+00:00",
+  "python": "3.11.15",
+  "sklearn": "1.8.0",
+  "dataset_size": 1531,
+  "dataset_hash": "7dcd763146b3131d",
+  "classes": [
+    "comun",
+    "electrico",
+    "exterior",
+    "humedo",
+    "seco",
+    "vial"
+  ],
+  "class_counts": {
+    "comun": 196,
+    "electrico": 144,
+    "exterior": 90,
+    "humedo": 151,
+    "seco": 214,
+    "vial": 736
+  },
+  "cv_accuracy_mean": 0.9308,
+  "cv_accuracy_std": 0.0145,
+  "cv_per_class": {
+    "comun": {
+      "precision": 0.8865,
+      "recall": 0.8367,
+      "f1-score": 0.8609
+    },
+    "electrico": {
+      "precision": 0.894,
+      "recall": 0.9375,
+      "f1-score": 0.9153
+    },
+    "exterior": {
+      "precision": 0.9457,
+      "recall": 0.9667,
+      "f1-score": 0.956
+    },
+    "humedo": {
+      "precision": 0.9247,
+      "recall": 0.894,
+      "f1-score": 0.9091
+    },
+    "seco": {
+      "precision": 0.9175,
+      "recall": 0.8832,
+      "f1-score": 0.9
+    },
+    "vial": {
+      "precision": 0.9521,
+      "recall": 0.9715,
+      "f1-score": 0.9617
+    }
+  },
+  "model": {
+    "type": "TF-IDF char_wb(2,6) + word(1,2) + LogisticRegression",
+    "C": 10.0,
+    "class_weight": "balanced",
+    "confidence_threshold_used_in_inference": 0.6
+  },
+  "edge_cases_pending": false,
+  "edge_cases_total": 81,
+  "edge_cases_passed": 81,
+  "edge_cases_failed": []
+}

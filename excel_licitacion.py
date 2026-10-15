@@ -10,7 +10,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-# ── UF referencial mayo 2026 ──────────────────────────────────────────────────
+# ── UF referencial mayo 2026 (usado como fallback — pasar uf_clp= para sobreescribir) ──
 UF_CLP = 38_500
 
 # ── Fills ─────────────────────────────────────────────────────────────────────
@@ -29,21 +29,52 @@ _PRECIO_PIQUE = {
     "1":  "excavacion_pique",
     "2":  "retiro_excavacion_pique",
     "3":  "montaje_liner_pique",
+    "4":  "refuerzo_losa_anillo_fondo",
+    "5":  "construccion_dren_pique",
+    "6":  "terminaciones_pique",
+    "7":  "cobertura_pique",
     "8":  "montaje_escalas_plataformas",
+    "9":  "refuerzo_apertura_pique",
+    "10": "shotcrete_pique",
+    "11": "malla_pique",
+    "12": "pernos_convergencia",
+    "13": "montaje_estructura_cables",
     "14": "brocal_definitivo",
     "15": "brocal_definitivo",
 }
 # Sección 5 (túneles)
 _PRECIO_TUNEL = {
-    "1": "excavacion_tunel",
-    "2": "retiro_excavacion_tunel",
-    "3": "montaje_liner_tunel",
-    "7": "radier_tunel",
+    "1":  "excavacion_tunel",
+    "2":  "retiro_excavacion_tunel",
+    "3":  "montaje_liner_tunel",
+    "4":  "pernos_frente_fibra_vidrio",
+    "5":  "shotcrete_frente_tunel",
+    "6":  "paraguas_micropilotes",
+    "7":  "radier_tunel",
+    "8":  "monitoreo_pernos",
+    "12": "estructura_cables_tunel",
+}
+# Sección 7 (reposición superficial) — ítem completo 7.N → clave de precio
+_PRECIO_SEC7 = {
+    "7.1":  "base_binder_asfalto",
+    "7.2":  "base_chancada_cbr80",
+    "7.3":  "calzada_asfaltica",
+    "7.4":  "demolicion_calzada",
+    "7.5":  "excavacion_dura",
+    "7.6":  "imprimacion_asfalto",
+    "7.7":  "preparacion_subrasante",
+    "7.8":  "riego_liga",
+    "7.9":  "subbase_estabilizada",
+    "7.10": "entibacion_excavaciones",
+    "7.11": "reposicion_areas_verdes",
+    "7.12": "reposicion_soleras",
+    "7.13": "demolicion_reposicion_veredas",
 }
 
 
-def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
+def cargar_precios_uf(csv_path: str | Path, uf_clp: float | None = None) -> dict[str, float]:
     """Carga precios desde CSV y los convierte a UF. Ignora líneas comentadas (#)."""
+    tasa = uf_clp if uf_clp else UF_CLP
     precios: dict[str, float] = {}
     path = Path(csv_path)
     if not path.exists():
@@ -52,7 +83,7 @@ def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
         for row in csv.DictReader(filter(lambda l: not l.startswith("#"), f)):
             try:
                 precios[row["partida"].strip()] = round(
-                    float(row["precio_clp"]) / UF_CLP, 4
+                    float(row["precio_clp"]) / tasa, 4
                 )
             except (KeyError, ValueError):
                 pass
@@ -60,8 +91,12 @@ def cargar_precios_uf(csv_path: str | Path) -> dict[str, float]:
 
 
 def _precio_para_item(num: str, precios_uf: dict[str, float]) -> float | None:
-    """Devuelve precio UF para un ítem numerado tipo '4.3.1' o '5.2.7', o None."""
+    """Devuelve precio UF para un ítem numerado tipo '4.3.1', '5.2.7' o '7.10', o None."""
     parts = num.split(".")
+    # Sección 7: ítem de 2 partes ej '7.1', '7.10'
+    if len(parts) == 2 and parts[0] == "7":
+        key = _PRECIO_SEC7.get(num)
+        return precios_uf.get(key) if key else None
     if len(parts) != 3:
         return None
     seccion, _, sub = parts
@@ -96,17 +131,23 @@ _PIQUE_ITEMS = {
     "excavacion_pique":            "4.{p}.1",
     "retiro_excavacion_pique":     "4.{p}.2",
     "montaje_liner_pique":         "4.{p}.3",
+    "refuerzo_losa_anillo_fondo":  "4.{p}.4",
+    "construccion_dren_pique":     "4.{p}.5",
+    "terminaciones_pique":         "4.{p}.6",
+    "cobertura_pique":             "4.{p}.7",
     "montaje_escalas_plataformas": "4.{p}.8",
+    "refuerzo_apertura_pique":     "4.{p}.9",
     # montaje_estructura_cables: solo P1 y P9 (ítem .13) — manejado en _build_qty_map
     # brocal_definitivo: P1/P9 → .15, P2-8 → .14 — manejado en _build_qty_map
 }
 # Items de tunnel: para tramo T (1..8)
 _TUNEL_ITEMS = {
-    "excavacion_tunel":        "5.{t}.1",
-    "retiro_excavacion_tunel": "5.{t}.2",
-    "montaje_liner_tunel":     "5.{t}.3",
-    "radier_tunel":            "5.{t}.7",
-    "instalacion_cables":      "5.{t}.8",
+    "excavacion_tunel":         "5.{t}.1",
+    "retiro_excavacion_tunel":  "5.{t}.2",
+    "montaje_liner_tunel":      "5.{t}.3",
+    "radier_tunel":             "5.{t}.7",
+    "monitoreo_pernos":         "5.{t}.8",
+    "estructura_cables_tunel":  "5.{t}.12",
 }
 # Piques 1,9 tienen ítem extra "Montaje estructura soporte de cables" (4.x.13)
 # → brocal definitivo queda en 4.x.15. Para piques 2-8 está en 4.x.14.
@@ -413,7 +454,7 @@ _PIQUE1_ESCENARIOS = [
 ]
 
 
-def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
+def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict, uf_clp: float | None = None) -> None:
     ws = wb.create_sheet("Análisis de Precios")
     ws.column_dimensions["A"].width = 40
     ws.column_dimensions["B"].width = 10
@@ -471,10 +512,13 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         nonlocal row
         row += 1
 
+    _uf = uf_clp if uf_clp else UF_CLP
+
     # ── Encabezado ────────────────────────────────────────────────────────────
     title("ANÁLISIS DE PRECIOS — TÚNEL LAT VITACURA-PROVIDENCIA")
+    _uf_src = "CLI --uf-clp" if uf_clp else "ref. mayo 2026 — usar --uf-clp para actualizar"
     ws.cell(row=row, column=1,
-            value=f"UF referencial: {UF_CLP:,} CLP (mayo 2026) | Generado: {__import__('datetime').date.today()}")
+            value=f"UF usada: ${_uf:,.0f} CLP ({_uf_src}) | ⚠ Actualizar con UF Banco Central al día de oferta | Generado: {__import__('datetime').date.today()}")
     ws.merge_cells(f"A{row}:F{row}")
     ws.cell(row=row, column=1).font = Font(italic=True, size=8)
     row += 1
@@ -541,7 +585,7 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
         data_row([
             desc, unidad,
             f"{uf_min:.2f}", f"{uf_max:.2f}",
-            f"${int(uf_min*UF_CLP):,} – ${int(uf_max*UF_CLP):,}",
+            f"${int(uf_min*_uf):,} – ${int(uf_max*_uf):,}",
             ref,
         ])
     blank()
@@ -591,8 +635,8 @@ def _build_analisis_sheet(wb: openpyxl.Workbook, cubicacion: dict) -> None:
 
     for i, v in enumerate([
         "TOTAL ÍTEMS CUBICADOS", "", "", "",
-        f"{total_min:,.0f} UF  (~${int(total_min*UF_CLP/1e6):.0f}M CLP)",
-        f"{total_max:,.0f} UF  (~${int(total_max*UF_CLP/1e6):.0f}M CLP)",
+        f"{total_min:,.0f} UF  (~${int(total_min*_uf/1e6):.0f}M CLP)",
+        f"{total_max:,.0f} UF  (~${int(total_max*_uf/1e6):.0f}M CLP)",
     ], 1):
         c = ws.cell(row=row, column=i, value=v)
         c.font = _FONT_BOLD; c.fill = _FILL_SECTION; c.border = _BORDER_THIN
@@ -714,8 +758,17 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
          "0.3315", "m³/m", "Diseño estructural radier túnel"),
         ("1.4", "Diámetro fundación pique", "4.20 m externo",
          "4.20", "m", "STM38020 detalle típico"),
-        ("1.5", "Espesor liner túnel (PL)", "5 mm",
-         "0.005", "m", "STM38020 nota técnica"),
+        ("1.5", "Espesor liner acero A-36", "5 mm",
+         "0.005", "m", "STM38019 §5.1 modelo TL"),
+        ("1.6", "Espesor revestimiento estándar",
+         "Liner 5mm + Shotcrete G-30 95mm",
+         "0.10", "m", "STM38019 §5.1 (pp.17)"),
+        ("1.7", "Espesor zona reforzada (apertura ojo demolición)",
+         "Liner + Shotcrete + 2do revestimiento",
+         "0.20", "m", "STM38019 §5.1"),
+        ("1.8", "Avance por anillo (pique y túnel)",
+         "Excavación + instalación liner secuencial",
+         "0.46", "m", "STM38019 §5.1 Tabla 5"),
     ]
     for c in constantes:
         data_row(list(c))
@@ -782,18 +835,31 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
          "Σ profundidad_i para i=1..9",
          sum(p.get("montaje_liner_pique", 0) for p in pq_qty.values()),
          "m", "= longitud anillo × cantidad anillos"),
-        ("4.4", "Montaje escalas+plataformas",
+        ("4.4", "Refuerzo losa anillo fondo (.4)",
+         "1 gl × 9 piques (suma alzada por pique)",
+         sum(p.get("refuerzo_losa_anillo_fondo", 0) for p in pq_qty.values()),
+         "gl", "Cant 1 gl/pique — precio cotizar"),
+        ("4.5", "Dren / Terminaciones / Cobertura / Refuerzo apertura",
+         "1 gl × 9 piques cada uno (items .5, .6, .7, .9)",
+         sum(p.get("construccion_dren_pique", 0)+p.get("terminaciones_pique", 0)
+             + p.get("cobertura_pique", 0)+p.get("refuerzo_apertura_pique", 0)
+             for p in pq_qty.values()),
+         "gl", "4 items × 9 piques = 36 gl en total"),
+        ("4.6", "Montaje escalas+plataformas (.8)",
          "1 gl × 9 piques (Aporte STM)",
          sum(p.get("montaje_escalas_plataformas", 0) for p in pq_qty.values()),
          "gl", "✓ Una unidad global por pique"),
-        ("4.5", "Brocal definitivo",
+        ("4.7", "Estructura soporte cables SS (.13)",
+         "500 kg × 2 piques (P1, P9) — estimado acero galvanizado",
+         sum(p.get("montaje_estructura_cables", 0) for p in pq_qty.values()),
+         "kg", "Solo SS Vitacura + SS Providencia"),
+        ("4.8", "Brocal definitivo (.14 / .15)",
          "1 gl × 9 piques",
          sum(p.get("brocal_definitivo", 0) for p in pq_qty.values()),
          "gl", "P1/P9 → ítem .15; P2-8 → ítem .14"),
-        ("4.6", "Montaje estructura cables (SS)",
-         "1 gl × 2 piques SS (P1 y P9)",
-         sum(p.get("montaje_estructura_cables", 0) for p in pq_qty.values()),
-         "gl", "Solo SS Vitacura + SS Providencia"),
+        ("4.9", "Shotcrete / Malla / Pernos Conv. (.10, .11, .12)",
+         "EVENTUAL — Tabla 15 STM38019 medidas auxiliares condicionales",
+         0, "—", "✓ Eventual: sin cantidad sistemática (Bosc.Cord. Nivel 0)"),
         ("5.1", "Excavación túnel",
          "Σ (3.8359 m² × longitud_i) para i=1..8",
          sum(t.get("excavacion_tunel", 0) for t in tr_qty.values()),
@@ -802,10 +868,17 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
          "Σ (0.3315 m³/m × longitud_i) para i=1..8",
          sum(t.get("radier_tunel", 0) for t in tr_qty.values()),
          "m³", "Verifica: 0.3315 × 2454.2 = 813.6 ✓"),
-        ("5.3", "Instalación cables",
-         "Σ (6 cables × longitud_i) para i=1..8",
-         sum(t.get("instalacion_cables", 0) for t in tr_qty.values()),
-         "ml", "⚠ Asumido: LAT 2×110kV = 2 circuitos × 3 fases"),
+        ("5.3", "Monitoreo de Pernos (.8)",
+         "1 gl × 8 tramos",
+         sum(t.get("monitoreo_pernos", 0) for t in tr_qty.values()),
+         "gl", "Item .8 del template (NO instalación cables)"),
+        ("5.4", "Estructura soporte cables AT túnel (.12)",
+         "20 kg/ml × longitud_i para i=1..8 (acero galvanizado)",
+         sum(t.get("estructura_cables_tunel", 0) for t in tr_qty.values()),
+         "kg", "⚠ Estimado 20 kg/ml — confirmar diseño bandejas"),
+        ("5.5", "Pernos frente / Shotcrete / Paraguas (.4, .5, .6)",
+         "Cantidades del template original (eventuales)",
+         0, "—", "Cant 'eventual' del cuadro precios STM"),
     ]
     for f in formulas:
         data_row([f[0], f[1], f[2], round(f[3], 2), f[4], f[5]])
@@ -840,25 +913,64 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
     supuestos = [
         ("6.1", "N° túneles paralelos", "1", "Diseño STM",
          "Multiplicar Sec 5 por N", "✓ Confirmado 1"),
-        ("6.2", "N° cables LAT por tramo", "6 (2×3 fases)",
-         "Estándar LAT 2×110kV", "Ajustar 5.x.8 proporcional", "⚠ Confirmar plano eléctrico"),
-        ("6.3", "Profundidad P9", "9.06 m (NV)",
+        ("6.2", "Estructura soporte cables AT túnel (5.x.12)",
+         "20 kg/ml × 2454m = 49.084 kg",
+         "Estimado: 6 cables LAT 2×110kV, bandejas+soportes acero galv.",
+         "Si diseño real difiere → ajustar kg/ml", "⚠ Confirmar plano bandejas"),
+        ("6.3", "Estructura soporte cables SS (4.x.13)",
+         "500 kg × 2 (P1, P9) = 1.000 kg",
+         "Estimado por SS — racks, bandejas, terminales",
+         "Verificar plano SS Vitacura/Providencia", "⚠ Estimado"),
+        ("6.4", "Profundidad P9", "9.06 m (NV)",
          "STM38023 vs STM38109 (9.67m)",
          "Δ excav P9 = 7.7 m³", "⚠ Discrepancia 0.61m"),
-        ("6.4", "Diámetro liner interior", "2.21 m",
+        ("6.5", "Diámetro liner interior", "2.21 m",
          "STM38136 vs STM38109 (2.10m)",
          "Δ sección = 0.38 m² (10%)", "✓ 2.21m incluye espesor anillos"),
-        ("6.5", "Longitud túnel total", "2454.2 m",
+        ("6.6", "Longitud túnel total", "2454.2 m",
          "STM38020-23 suma DM",
          "STM38109 redondea a 2450m", "✓ Diferencia 4.2m (0.17%)"),
-        ("6.6", "Cantidades 4.x.10-12 (shotcrete/malla/pernos)",
-         "No cubicado", "Requiere RMR/Q rock mass",
-         "Eventual según geotecnia", "⚠ Pendiente STM38019 RMR"),
-        ("6.7", "UF referencial", "38.500 CLP",
+        ("6.7", "Cantidades 4.x.10-12 (shotcrete/malla/pernos)",
+         "EVENTUAL — sin cantidad sistemática",
+         "STM38019 §7+§8: Tabla 15 medidas auxiliares condicionales; "
+         "Boscarding Cording Nivel 0 (deformaciones <1mm)",
+         "Solo se aplica si terreno lo requiere", "✓ Eventual confirmado"),
+        ("6.8", "Items 4.x.4-7, 4.x.9 (suma alzada)",
+         "1 gl × 9 piques cada uno",
+         "Refuerzo losa, dren, terminaciones, cobertura, refuerzo apertura",
+         "Precios referenciales — cotizar", "⚠ Suma alzada"),
+        ("6.9", "Monitoreo Pernos (5.x.8)",
+         "1 gl × 8 tramos",
+         "Item correcto del template (NO instalación cables — bug v3)",
+         "Cant 1 gl/tramo es estándar", "✓ Corregido v4"),
+        ("6.10", "UF referencial", "38.500 CLP",
          "Mayo 2026", "Actualizar al mes oferta", "✓ Configurable"),
-        ("6.8", "Altura excavación = profundidad NV",
+        ("6.11", "Altura excavación = profundidad NV",
          "Sí", "Convención técnica",
          "Si sump existe → +volumen", "⚠ STM38023 nota 'Nivel -3.50' en P9"),
+        ("6.12", "Plazo proyecto (Costos Indirectos)",
+         "24 meses", "Estimado proyecto OOCC tunneling 2.45km + 9 piques",
+         "Cada mes adicional × 1.300 UF/mes indirecto",
+         "⚠ Verificar Bases Técnicas"),
+        ("6.13", "Estratigrafía (3 estratos)",
+         "H1 Relleno 0-3.45m / H2 Grava 2° 3.45-7.50m / H3 Grava 1° 7.50-20m",
+         "STM38019 §4.1.1 Tabla 1 — 'Gravas de Santiago'",
+         "Túnel principalmente en Grava 1° (φ'=45°, c'=35 kPa)",
+         "✓ Confirmado"),
+        ("6.14", "Napa freática", "25-35 m bajo superficie",
+         "STM38019 §4.2 — bajo nivel cota túnel",
+         "Túnel NO estanco — sistema captación aguas Fig 66",
+         "✓ Sin presión hidrostática diseño"),
+        ("6.15", "Pernos Marchiavanti (sostenimiento bóveda)",
+         "L=4m traslape 1.5m / L=2m traslape 1.0m",
+         "STM38019 §7 Fig 64 — eventual según riesgo",
+         "Cant. ya en template 5.x.4 + 5.9.1/5.9.2",
+         "✓ Cant del mandante"),
+        ("6.16", "Boscarding Cording (afectaciones)",
+         "Nivel 0 (despreciable) en TODOS los cruces",
+         "STM38019 §8 — Costanera Norte, Mapocho Limpio, San Carlos, L7 Metro",
+         "Sin requerimiento extra de monitoreo intensivo",
+         "✓ Bajo riesgo confirmado"),
     ]
     for s in supuestos:
         data_row(list(s))
@@ -880,9 +992,12 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
          "23 jet fans S&P TJHT2/4-315-CN, ubicación Tabla 4.2", "Sec 5 supuestos", ""),
         ("7.6", "STM38110 ETP Equipos Ventilación", "REV.0 14-11-2025",
          "2 extractores Soler-Palau TGT/6-1409, modelo jet fan", "Sec 5 supuestos", ""),
-        ("7.7", "STM38019 Geotécnica", "—",
-         "Estratigrafía H1-H3 (Relleno/Grava 2°/Grava 1°)",
-         "Pendiente RMR para 4.x.10-12", ""),
+        ("7.7", "STM38019 Informe No-Afecciones (NATM, FLAC3D)",
+         "REV.0 15-01-2026",
+         "Estratigrafía H1-H3 + Parámetros geotécnicos + Espesor revestimiento "
+         "(10cm estándar, 20cm reforzado) + Avance 0.46m + Tabla 15 medidas "
+         "eventuales + Boscarding Cording Nivel 0",
+         "Sec 1 constantes + Sec 6 supuestos", ""),
         ("7.8", "STM38136 Planos eléctricos", "REV.1 06/04/2026",
          "Ø interior pique 4.0m, Ø interior liner 2.21m",
          "Sec 1 constantes", ""),
@@ -910,20 +1025,152 @@ def _build_memoria_calculo_sheet(wb: openpyxl.Workbook, cubicacion: dict,
          sum(t.get("montaje_liner_tunel", 0) for t in tr_qty.values()), "m", "", ""),
         ("8.5", "Radier H30",
          sum(t.get("radier_tunel", 0) for t in tr_qty.values()), "m³", "", ""),
-        ("8.6", "Cables instalados (6 × longitud)",
-         sum(t.get("instalacion_cables", 0) for t in tr_qty.values()), "ml", "", ""),
-        ("8.7", "Estructura cables SS",
+        ("8.6", "Estructura soporte cables AT túnel (5.x.12)",
+         sum(t.get("estructura_cables_tunel", 0) for t in tr_qty.values()), "kg",
+         "(20 kg/ml × 2454m)", ""),
+        ("8.7", "Estructura soporte cables SS (4.x.13)",
          sum(p.get("montaje_estructura_cables", 0) for p in pq_qty.values()),
-         "gl", "(solo P1+P9)", ""),
+         "kg", "(500 kg × P1+P9 = 1000 kg)", ""),
         ("8.8", "Escalas+plataformas",
          sum(p.get("montaje_escalas_plataformas", 0) for p in pq_qty.values()),
          "gl", "", ""),
         ("8.9", "Brocales definitivos",
          sum(p.get("brocal_definitivo", 0) for p in pq_qty.values()), "gl", "", ""),
+        ("8.10", "Monitoreo de Pernos (5.x.8)",
+         sum(t.get("monitoreo_pernos", 0) for t in tr_qty.values()), "gl",
+         "(1 gl × 8 tramos)", ""),
+        ("8.11", "Items suma alzada piques (4.x.4-7, 4.x.9)",
+         sum(p.get("refuerzo_losa_anillo_fondo", 0)
+             + p.get("construccion_dren_pique", 0)
+             + p.get("terminaciones_pique", 0)
+             + p.get("cobertura_pique", 0)
+             + p.get("refuerzo_apertura_pique", 0) for p in pq_qty.values()),
+         "gl", "(5 items × 9 piques = 45 gl)", ""),
     ]
     for r in resumen:
         c1 = round(r[2], 2) if isinstance(r[2], float) else r[2]
         data_row([r[0], r[1], c1, r[3], r[4], r[5]], fill=_FILL_CALC)
+    row += 1
+
+    # ── Sec 9: Racionales Costos Indirectos / GG / Utilidad (hoja B) ─────────
+    section("9. RACIONALES COSTOS INDIRECTOS, GG Y UTILIDAD (hoja B)")
+    header(["#", "Concepto", "Cantidad", "Tiempo", "Precio UF/u",
+            "Subtotal UF / Justificación"])
+    indirect_rats = [
+        ("9.0", "Plazo referencial proyecto", "—", "24 meses", "—",
+         "Estimado tunneling 2.45km — verificar Bases Técnicas"),
+        ("9.1", "Vigilancia 24h externalizada", "1", "24 m", "100",
+         "2,400 UF — servicio integral 4 guardias rotación"),
+        ("9.2", "Personal indirecto (8 personas, sueldo UF/mes)", "—", "24 m", "—",
+         "18,840 UF total. Admin 150, JT 120, 2×Sup 90, Prev 80, MA 70, "
+         "Topo 80, Tra 55, Bod 50 UF/mes (mid-range Chile 2026)"),
+        ("9.3", "Maquinarias y vehículos", "—", "24 m", "—",
+         "6,360 UF — 3 camionetas (35), fletes (50), andamios (30), "
+         "equipos menores (80) UF/mes"),
+        ("9.4", "Disposición residuos + excedentes", "—", "24 m", "—",
+         "4,080 UF — residuos sólidos (50), excedentes excavación (120) UF/mes"),
+        ("9.5", "TOTAL COSTOS INDIRECTOS", "—", "—", "—",
+         "31,680 UF (≈42% del Directo) — norma 25-35% en obras civiles, "
+         "40-50% en obras especializadas tunneling"),
+        ("9.6", "GG Aporte Oficina Central", "1 gl", "—", "3,200",
+         "≈4.4% del Directo (norma 3-6%)"),
+        ("9.7", "GG Gastos Financieros", "1 gl", "—", "1,800",
+         "≈2.5% del Directo (intereses+factoring)"),
+        ("9.8", "GG Boletas Garantía + Seguros", "1 gl", "—", "1,200",
+         "≈1.6% del Directo"),
+        ("9.9", "TOTAL GASTOS GENERALES", "—", "—", "—",
+         "6,200 UF (≈8.3% del Directo) — norma 8-12%"),
+        ("9.10", "Utilidad Contratista", "1 gl", "—", "var.",
+         "DECISIÓN COMERCIAL del oferente — NO es costo recuperable. "
+         "Norma 8-15% del Costo Directo en obras especializadas. "
+         "Valor referencial 8.000 UF (~11%). "
+         "Ajustar según competitividad, riesgo y estructura de la empresa. "
+         "Usar --utilidad-uf para fijar valor al generar el Excel."),
+        ("9.11", "RESUMEN OFERTA",
+         "Directo: 74.843 UF | Indirecto: 31.680 UF | GG: 6.200 UF | "
+         "Utilidad: 8.000 UF | Neto: 120.723 UF | IVA: 22.937 UF",
+         "—", "—",
+         "TOTAL: 143.660 UF ≈ $5,531M CLP"),
+    ]
+    for r in indirect_rats:
+        data_row(list(r), fill=_FILL_PRICE_REF)
+    note("⚠ Valores marcados salmón en hoja B son REFERENCIALES (plazo 24 meses + "
+         "tasas Chile 2026). Contratista debe ajustar a su estructura organizacional, "
+         "plazo real y costo de personal específico.")
+
+
+# ── Llenado referencial de Costos Indirectos / GG / Utilidad ──────────────────
+
+# Plazo referencial proyecto: 24 meses (revisar Bases Tecnicas para plazo real)
+_PLAZO_MESES_REF = 24
+
+# Valores referenciales por linea — {row: (cantidad, tiempo, precio_uf, nota)}
+# Fuente: tasas mercado Chile 2026 ajustadas para proyecto tunneling ~73K UF directo
+# Target: Indirecto+GG+Util ~45-50% del directo (norma 40-55% en obras especializadas)
+# Cantidad y tiempo son D y E del template; G = D*E*F en formula
+_COSTOS_IND_REF = {
+    # 1.1 Vigilancia (servicio 24h externalizado)
+    10: (1, _PLAZO_MESES_REF, 100, "Servicio vigilancia 24h externalizado"),
+    # 1.2 Personal indirecto — UF/mes acordes mercado Chile 2026
+    13: (1, _PLAZO_MESES_REF, 150, "1 Administrador (~$5.8M CLP/mes)"),
+    14: (1, _PLAZO_MESES_REF, 120, "1 Jefe de Terreno (~$4.6M CLP/mes)"),
+    15: (2, _PLAZO_MESES_REF,  90, "2 Supervisores en turnos"),
+    16: (1, _PLAZO_MESES_REF,  80, "1 Encargado Prevencion Riesgos"),
+    17: (1, _PLAZO_MESES_REF,  70, "1 Encargado Medio Ambiente"),
+    18: (1, _PLAZO_MESES_REF,  80, "1 Topografo"),
+    19: (1, _PLAZO_MESES_REF,  55, "1 Trazador"),
+    20: (1, _PLAZO_MESES_REF,  50, "1 Bodeguero"),
+    # 1.3 Maquinarias / vehiculos
+    24: (3, _PLAZO_MESES_REF,  35, "3 Camionetas operativas"),
+    25: (1, _PLAZO_MESES_REF,  50, "Fletes mensuales"),
+    26: (1, _PLAZO_MESES_REF,  30, "Arriendo andamios"),
+    27: (1, _PLAZO_MESES_REF,  80, "Equipos menores (grupos, compresor)"),
+    # 1.4 Residuos
+    30: (1, _PLAZO_MESES_REF,  50, "Disposicion residuos sólidos"),
+    31: (1, _PLAZO_MESES_REF, 120, "Disposicion excedentes excavación"),
+    # 2 Gastos Generales (1 gl, valor en F directo)
+    47: (1, 1, 3200, "Aporte oficina central ~4.4% directo"),
+    48: (1, 1, 1800, "Gastos financieros ~2.5% directo"),
+    49: (1, 1, 1200, "Boletas garantia + seguros ~1.6% directo"),
+    # 3 Utilidades (placeholder — sobreescrito por utilidad_uf en _fill_costos_indirectos_sheet)
+    53: (1, 1, 8000, "Utilidad contratista — DECISIÓN COMERCIAL"),
+}
+
+
+def _fill_costos_indirectos_sheet(ws, utilidad_uf: float | None = None) -> None:
+    """Rellena cantidades, tiempos y precios referenciales en B) Detalle C. Ind.
+
+    Marca celdas en salmón (_FILL_PRICE_REF) para indicar valor estimado.
+    Mantiene fórmulas G = D*E*F del template — solo escribe D, E, F.
+    utilidad_uf: si se pasa, sobreescribe el precio referencial de la fila 53 (Utilidad).
+    """
+    if ws is None:
+        return
+    costos = dict(_COSTOS_IND_REF)
+    if utilidad_uf is not None:
+        cant, tiempo, _, nota = costos[53]
+        costos[53] = (cant, tiempo, utilidad_uf, nota)
+    for fila, (cant, tiempo, precio_uf, nota) in costos.items():
+        # D = cantidad, E = tiempo, F = precio unitario UF
+        for col, val in [(4, cant), (5, tiempo), (6, precio_uf)]:
+            c = ws.cell(row=fila, column=col, value=val)
+            c.fill = _FILL_PRICE_REF
+            c.font = _FONT_NORM
+            c.border = _BORDER_THIN
+            if col == 6:
+                c.number_format = '#,##0.00'
+        # Nota referencial en columna I (fuera de la formula)
+        c_nota = ws.cell(row=fila, column=9, value=f"REF: {nota}")
+        c_nota.font = Font(size=8, italic=True, color="808080")
+
+    # Header de nota referencial al final del sheet
+    last_row = ws.max_row + 2
+    c = ws.cell(row=last_row, column=1,
+                value=(f"⚠ Valores en salmón (cantidades, tiempos, precios) son REFERENCIALES "
+                       f"para plazo {_PLAZO_MESES_REF} meses. "
+                       f"Contratista debe ajustar a su estructura organizacional y plazo real."))
+    c.font = Font(size=9, italic=True, bold=True, color="C00000")
+    ws.merge_cells(start_row=last_row, start_column=1, end_row=last_row, end_column=8)
 
 
 # ── Función principal ─────────────────────────────────────────────────────────
@@ -934,13 +1181,19 @@ def exportar_licitacion(
     ruta_out: str | Path,
     template: str | Path | None = None,
     precios_csv: str | Path | None = None,
+    uf_clp: float | None = None,
+    utilidad_uf: float | None = None,
 ) -> Path:
     """
     Genera Excel en formato licitación con cantidades y precios referenciales.
 
-    template:    path al .xlsx del mandante (opcional).
-    precios_csv: path al CSV de precios (default: precios_electrico.csv junto al módulo).
-                 Precios en CLP → se convierten a UF. Se marcan en salmón (referenciales).
+    template:     path al .xlsx del mandante (opcional).
+    precios_csv:  path al CSV de precios (default: precios_electrico.csv junto al módulo).
+                  Precios en CLP → se convierten a UF. Se marcan en salmón (referenciales).
+    uf_clp:       valor UF en CLP al día de oferta (default 38_500 ref. mayo 2026).
+                  Usar --uf-clp CLI arg o pasar Banco Central value del día.
+    utilidad_uf:  utilidad del contratista en UF (decisión comercial, default 8_000).
+                  Usar --utilidad-uf CLI arg para fijar margen propio.
     Devuelve Path del archivo generado.
     """
     ruta_out = Path(ruta_out)
@@ -958,7 +1211,7 @@ def exportar_licitacion(
     # Cargar precios referenciales
     if precios_csv is None:
         precios_csv = Path(__file__).parent / "precios_electrico.csv"
-    precios_uf = cargar_precios_uf(precios_csv)
+    precios_uf = cargar_precios_uf(precios_csv, uf_clp=uf_clp)
 
     qty_map = _build_qty_map(cubicacion)
 
@@ -966,6 +1219,10 @@ def exportar_licitacion(
     if ws_det.max_row <= 1:  # sheet vacía (sin template)
         _create_detalle_rows(ws_det)
     _fill_detalle_sheet(ws_det, qty_map, precios_uf=precios_uf)
+
+    # Llenar costos indirectos referenciales si la hoja existe (viene del template)
+    ws_ind = wb["B) Detalle C. Ind., GG y Utilid"] if "B) Detalle C. Ind., GG y Utilid" in wb.sheetnames else None
+    _fill_costos_indirectos_sheet(ws_ind, utilidad_uf=utilidad_uf)
 
     # Leyenda de colores en Resumen Oferta
     ws_res = wb["Resumen Oferta"]
@@ -979,13 +1236,25 @@ def exportar_licitacion(
         c.fill = fill
         c.font = Font(size=8, italic=True)
 
+    # Nota UF en Resumen Oferta
+    _uf_val = uf_clp if uf_clp else UF_CLP
+    _uf_src = f"CLI --uf-clp" if uf_clp else "ref. mayo 2026"
+    ws_res.cell(row=leyenda_row + 1, column=1,
+                value=f"UF usada: ${_uf_val:,.0f} CLP ({_uf_src}) — verificar con Banco Central al día de oferta")
+    ws_res.cell(row=leyenda_row + 1, column=1).font = Font(size=8, italic=True, color="C00000")
+
     # Eliminar hojas preexistentes del template antes de regenerar
     for sheet_name in ("Análisis de Precios", "Memoria de Cálculo"):
         if sheet_name in wb.sheetnames:
             del wb[sheet_name]
 
-    _build_analisis_sheet(wb, cubicacion)
+    _build_analisis_sheet(wb, cubicacion, uf_clp=uf_clp)
     _build_memoria_calculo_sheet(wb, cubicacion, resultado)
+
+    # Forzar a Excel/LibreOffice a recalcular todas las fórmulas al abrir
+    # (Resumen Oferta depende de cadenas largas de fórmulas; sin esto, valor cacheado=0)
+    if wb.calculation is not None:
+        wb.calculation.fullCalcOnLoad = True
 
     wb.save(ruta_out)
     return ruta_out

@@ -1167,23 +1167,28 @@ def cubicar_electrico(
     alturas_override: Optional[dict] = None,
     piques: Optional[list] = None,
     tramos_tunel: Optional[list] = None,
+    diametro_pique_m: float = 4.0,
+    diametro_tunel_m: float = 2.21,
+    espesor_radier_m: float = 0.15,
+    ss_pique_ids: Optional[set] = None,
 ) -> dict:
     """
-    Cubica infraestructura de túnel eléctrico LAT Vitacura-Providencia.
+    Cubica infraestructura de túnel eléctrico LAT subterránea.
 
     Si se pasan `piques` y `tramos_tunel` (desde el JSON con datos_proyecto),
     genera cantidades exactas por pique (4.1–4.9) y por tramo (5.1–5.8).
     Si no, cae al modo legacy usando los recintos del resultado (solo PIQUE 1).
 
-    Constantes geométricas (confirmadas BAE + planos):
-      - Pique Ø4.0m interior → área sección = π×2² = 12.57 m²
-      - Túnel Ø2.21m interior → área sección = π×1.105² = 3.84 m²
-      - Radier: ancho = 2.21m, espesor = 0.15m → 0.332 m³/m
+    Parámetros geométricos (override desde datos_proyecto del JSON):
+      diametro_pique_m: diámetro interior del pique (default 4.0m)
+      diametro_tunel_m: diámetro interior del túnel liner (default 2.21m)
+      espesor_radier_m: espesor del radier de hormigón (default 0.15m)
+      ss_pique_ids: set de IDs de piques que son SS (subestación) — si None,
+                    auto-detecta por nota "extremo" o por primer/último ID.
     """
-    # Constantes geométricas confirmadas
-    AREA_PIQUE_M2 = math.pi * 2.0 ** 2       # 12.57 m² — Ø4.0m interior
-    AREA_TUNEL_M2 = math.pi * 1.105 ** 2     # 3.84 m²  — Ø2.21m interior
-    RADIER_VOL_PER_M = 2.21 * 0.15            # 0.332 m³/m — base plana del túnel
+    AREA_PIQUE_M2 = math.pi * (diametro_pique_m / 2) ** 2
+    AREA_TUNEL_M2 = math.pi * (diametro_tunel_m / 2) ** 2
+    RADIER_VOL_PER_M = diametro_tunel_m * espesor_radier_m
 
     alturas_override = alturas_override or {}
     acum: dict[str, dict] = {}
@@ -1191,6 +1196,15 @@ def cubicar_electrico(
     tramos_qty: dict[int, dict[str, float]] = {}
     clasif = []
     recintos_sin_area: list[str] = []
+
+    # Auto-detect SS piques (subestaciones) si no se pasan explícitamente.
+    # Regla: piques con "extremo" en notas; si ninguno, primer y último ID.
+    if ss_pique_ids is None and piques:
+        _extremos = {pq["id"] for pq in piques if "extremo" in str(pq.get("notas", "")).lower()}
+        if not _extremos:
+            _ids = [pq["id"] for pq in piques]
+            _extremos = {min(_ids), max(_ids)}
+        ss_pique_ids = _extremos
 
     def _add(key: str, desc: str, unidad: str, cant: float, nota: str) -> None:
         if key not in acum:
@@ -1212,16 +1226,27 @@ def cubicar_electrico(
                 "montaje_escalas_plataformas": 1,
                 "brocal_definitivo":           1,
             }
-            if pid in (1, 9):  # SS Vitacura (P1) y SS Providencia (P9)
-                piques_qty[pid]["montaje_estructura_cables"] = 1
+            # 4.x.13 — Montaje estructura soporte cables (kg de acero)
+            # Solo piques SS (subestación): ~500 kg estructura por SS (estimado)
+            if ss_pique_ids and pid in ss_pique_ids:
+                piques_qty[pid]["montaje_estructura_cables"] = 500
+            # 4.x.4 a 4.x.7, 4.x.9: items "gl" suma alzada — 1 gl por pique
+            for k in ("refuerzo_losa_anillo_fondo", "construccion_dren_pique",
+                      "terminaciones_pique", "cobertura_pique", "refuerzo_apertura_pique"):
+                piques_qty[pid][k] = 1
             nota = f"Pique {pid} (Ø4.0m × {prof:.1f}m prof.)"
             _add("excavacion_pique", "Excavación pique", "m3", excav, nota)
             _add("retiro_excavacion_pique", "Retiro excavación y transporte botadero", "m3", excav, nota)
             _add("montaje_liner_pique", "Montaje liner pique Ø4.0m (sello+mortero)", "m", prof, nota)
             _add("montaje_escalas_plataformas", "Montaje escalas y plataformas (STM aporta)", "gl", 1, f"Pique {pid}")
             _add("brocal_definitivo", "Construcción brocal definitivo", "gl", 1, f"Pique {pid}")
-            if pid in (1, 9):
-                _add("montaje_estructura_cables", "Montaje estructura soporte cables SS", "gl", 1, f"Pique {pid} (SS)")
+            _add("refuerzo_losa_anillo_fondo", "Refuerzo losa anillo fondo pique", "gl", 1, f"Pique {pid}")
+            _add("construccion_dren_pique", "Construcción dren pique", "gl", 1, f"Pique {pid}")
+            _add("terminaciones_pique", "Terminaciones pique", "gl", 1, f"Pique {pid}")
+            _add("cobertura_pique", "Cobertura pique (cámara hormigón)", "gl", 1, f"Pique {pid}")
+            _add("refuerzo_apertura_pique", "Refuerzo apertura pique (acceso túnel)", "gl", 1, f"Pique {pid}")
+            if ss_pique_ids and pid in ss_pique_ids:
+                _add("montaje_estructura_cables", "Montaje estructura soporte cables (kg acero)", "kg", 500, f"Pique {pid} (SS)")
     else:
         # ── Modo legacy: un pique desde recintos (fallback) ───────────────────
         for rec in resultado.get("recintos", []):
@@ -1248,27 +1273,29 @@ def cubicar_electrico(
 
     if tramos_tunel:
         # ── Modo multi-tramo: datos estructurados desde JSON ─────────────────
+        # Soportes de cables AT (5.x.12, kg): estimado 20 kg/ml para 6 cables LAT 2×110kV
+        KG_SOPORTE_PER_ML = 20.0
         for tr in tramos_tunel:
             tid = tr["id"]
             lng = float(tr["longitud_m"])
             excav = AREA_TUNEL_M2 * lng
             radier = RADIER_VOL_PER_M * lng
-            # LAT 2×110kV = 2 circuitos × 3 fases = 6 cables por tramo
-            N_CABLES_LAT = 6
-            cables_ml = round(N_CABLES_LAT * lng, 1)
+            soporte_kg = round(KG_SOPORTE_PER_ML * lng, 1)
             tramos_qty[tid] = {
                 "excavacion_tunel":       round(excav, 2),
                 "retiro_excavacion_tunel": round(excav, 2),
                 "montaje_liner_tunel":    round(lng, 1),
                 "radier_tunel":           round(radier, 2),
-                "instalacion_cables":     cables_ml,
+                "monitoreo_pernos":       1,
+                "estructura_cables_tunel": soporte_kg,
             }
             nota = f"Tramo {tid} P{tr['entre_piques']} ({lng:.0f}m)"
             _add("excavacion_tunel", "Excavación túnel Ø2.21m", "m3", excav, nota)
             _add("retiro_excavacion_tunel", "Retiro excavación túnel", "m3", excav, nota)
             _add("montaje_liner_tunel", "Montaje liner túnel Ø2.21m (sello+mortero)", "m", lng, nota)
             _add("radier_tunel", "Radier hormigón H30 e=15cm", "m3", radier, nota)
-            _add("instalacion_cables", "Instalación cables LAT 2×110kV (6 cables)", "ml", cables_ml, nota)
+            _add("monitoreo_pernos", "Monitoreo de pernos (1 gl por tramo)", "gl", 1, nota)
+            _add("estructura_cables_tunel", "Soporte cables AT (kg acero)", "kg", soporte_kg, nota)
     else:
         # ── Modo legacy: un tramo desde recintos ──────────────────────────────
         for rec in resultado.get("recintos", []):

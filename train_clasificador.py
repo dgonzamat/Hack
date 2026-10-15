@@ -13,11 +13,16 @@ Uso:
 """
 
 import argparse
+import datetime as _dt
+import hashlib
+import json
 import pickle
 import re
+import sys
 import unicodedata
 from pathlib import Path
 
+import sklearn
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
@@ -25,6 +30,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_pre
 from sklearn.pipeline import FeatureUnion, Pipeline
 
 PKL_PATH = Path(__file__).parent / "clasificador_recintos.pkl"
+META_PATH = Path(__file__).parent / "clasificador_recintos.meta.json"
 
 
 def _norm(s: str) -> str:
@@ -70,6 +76,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SALA COMPRESORES PISCINA", "CUARTO COMPRESORES PISCINA",
          "SALA ACS", "CUARTO ACS", "SALA CLIMATIZACION HIDRONICA",
          "CUARTO TERMOTANQUES", "SALA ESTANQUES AGUA"], "humedo")
+
+    # Humedo — refuerzo para baños con calificadores ambiguos y cocinas híbridas
+    # (reduce humedo→seco: COCINA COMEDOR, PIEZA LAVADO → seco)
+    # NOTA: evitar SALA/CUARTO + EDIFICIO aquí — pertenecen a comun, no humedo
+    add(["DUCHA PRIVADA", "DUCHA PERSONAL",
+         "BANO ACCESO", "SSHH PERSONAL", "BANO PERSONAL",
+         "BANO INDIVIDUAL", "BANO PROPIO",
+         "COCINA DIARIA", "COCINA FAMILIAR",
+         "COCINA COMEDOR PRIVADO", "ESPACIO COCINA COMEDOR",
+         "CUARTO LAVADO INTERNO", "PIEZA LAVADO INTERIOR",
+         "LAVADO INTERIOR", "ZONA LAVADO PRIVADA"], "humedo")
 
     add(["SH", "SSHH", "S.H.", "S.S.H.H.", "SS.HH.", "SS HH",
          "SERV HIG", "SERVICIO HIGIENICO", "SERVICIO HIGIÉNICO",
@@ -128,6 +145,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "SALA DE PLANCHA", "SALA INFANTIL", "SALA JUEGOS INFANTIL",
          "SALA MULTIMEDIA PRIVADA", "SALA DE LECTURA PRIVADA"], "seco")
 
+    # Seco residencial — ancla SALA/SALON/CUARTO en contexto privado
+    # (reduce seco→vial: model confunde SALA sin calificador con SALA TECNICA TUNEL)
+    add(["SALON", "SALON PRIVADO", "SALON RESIDENCIAL", "SALON FAMILIAR",
+         "SALA FAMILIAR", "SALA PRIVADA", "SALA ENTRETENIMIENTO", "SALA ENTRETENCION",
+         "SALON COMEDOR PRIVADO", "SALA CINE PRIVADA",
+         "CUARTO TV", "CUARTO TELEVISION", "CUARTO MULTIMEDIA",
+         "SALA HOBBY", "ESPACIO LIVING", "ESPACIO COMEDOR", "ZONA LIVING",
+         "SALITA", "SALITA DE ESTAR", "SALON DE ESTAR",
+         "CUARTO PRIVADO", "PIEZA PRIVADA", "ESPACIO PRIVADO",
+         "VESTIDOR INTERIOR", "CLOSET PRINCIPAL"], "seco")
+
     # ── EXTERIOR ─────────────────────────────────────────────────────────────
     add(["TERRAZA", "BALCON", "BALCÓN", "LOGGIA",
          "PATIO", "PATIO EXTERIOR", "PATIO INTERIOR", "PATIO DE SERVICIO",
@@ -137,6 +165,17 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "QUINCHO", "PARRILLA", "ASADOR", "SOLARIUM",
          "PISCINA", "AREA PISCINA", "TERRAZA PISCINA",
          "ZONA VERDE", "AREA VERDE"], "exterior")
+
+    # Exterior residencial privado — ancla términos cortos que se confunden con vial
+    # (reduce exterior→vial: DECK, JARDIN, QUINCHO, SOLARIUM, AREA VERDE → vial)
+    add(["DECK PRIVADO", "DECK MADERA", "TERRAZA MADERA",
+         "JARDIN PRIVADO", "JARDIN INTERIOR", "JARDIN DEPTO",
+         "PATIO PRIVADO DEPTO", "PATIO INTERIOR PRIVADO",
+         "LOGGIA PRIVADA", "LOGGIA DEPTO", "LOGGIA EXTERIOR DEPTO",
+         "ANTEJARDIN RESIDENCIAL", "JARDIN RESIDENCIAL",
+         "AREA VERDE PRIVADA", "ZONA VERDE PRIVADA", "ZONA AJARDINADA",
+         "AREA PARRILLA PRIVADA", "ZONA PARRILLA PRIVADA",
+         "AREA EXTERIOR PRIVADA", "ZONA EXTERIOR DEPTO"], "exterior")
     for base in ["TERRAZA", "BALCON", "PATIO"]:
         for n in ["1", "2", "3"]:
             add([f"{base} {n}"], "exterior")
@@ -158,6 +197,18 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "CORREDOR DE DISTRIBUCIÓN", "CIRCULACION", "CIRCULACIÓN",
          "AREA DE CIRCULACION", "ÁREA DE CIRCULACIÓN",
          "HALL CIRCULACION", "DISTRIBUCION", "DISTRIBUCIÓN"], "comun")
+
+    # Circulación horizontal de edificio con calificador de piso/edificio
+    # (reduce comun→vial: PASILLO, CORREDOR, ACCESO sin contexto → vial)
+    add(["CORREDOR PISO", "CORREDOR EDIFICIO", "CORREDOR INTERIOR",
+         "CORREDOR COMUN", "CORREDOR INTERIOR PISO",
+         "PASILLO PISO", "PASILLO EDIFICIO", "PASILLO INTERIOR PISO",
+         "PASILLO COMUN PISO", "PASILLO INTERIOR EDIFICIO",
+         "ACCESO DEPTO", "ACCESO PRIVADO EDIFICIO", "ACCESO VECINOS",
+         "CIRCULACION PISO", "CIRCULACION HORIZONTAL",
+         "VESTIBULO PISO", "VESTIBULO EDIFICIO",
+         "RECIBIDOR PISO", "DISTRIBUCION PISO",
+         "HALL PISO N"], "comun")
 
     add(["ESCALERA", "CAJA DE ESCALERA", "ESCALERA INTERIOR",
          "ESCALERA PRINCIPAL", "ESCALERA SERVICIO",
@@ -219,6 +270,15 @@ def _generar_dataset() -> list[tuple[str, str]]:
     add(["PORTERIA EDIFICIO", "GUARDIA", "CASETA GUARDIA", "SALA GUARDIA",
          "OFICINA ADMINISTRACION", "SALA ADMINISTRACION", "GERENCIA EDIFICIO",
          "SALON DE DIRECTORIO", "SALA DE DIRECTORIO EDIFICIO"], "comun")
+
+    # Comun building-service rooms — ancla términos que se confunden con seco
+    # (reduce comun→seco: SALA MULTIUSO, OFICINA ADMINISTRACION → seco)
+    add(["SALA MULTIUSO EDIFICIO", "SALA POLIVALENTE EDIFICIO",
+         "SALA USOS MULTIPLES EDIFICIO", "SALA EVENTOS COMUN",
+         "OFICINA CONSERJE", "CONSERJE", "ADMINISTRACION EDIFICIO",
+         "SALA GUARDIA EDIFICIO", "PORTERIA COMUN",
+         "SALA DIRECTORIO EDIFICIO", "SALA REUNION EDIFICIO",
+         "SALA COMITE EDIFICIO", "SALA COPROPIETARIOS"], "comun")
 
     # Baño / servicios comunes (no de depto)
     add(["BANO COMUN", "BANO VISITAS EDIFICIO", "SSHH COMUN", "SSHH PISO",
@@ -565,6 +625,31 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "APARCA BICICLETAS", "SOPORTE BICICLETAS VIAL",
          "CICLOINFRAESTRUCTURA", "SENDA COMPARTIDA"], "vial")
 
+    # Vial — tableros/tramos/piques con calificador explícito para separar de electrico
+    # (reduce vial→electrico: TABLERO, TRAMO SUBTERRANEO, PIQUE DE CONSTRUCCION → electrico)
+    add(["TABLERO PUENTE NUEVO", "TABLERO CARRETERO", "TABLERO VIAL",
+         "TABLERO VOLADIZO PUENTE", "TABLERO MIXTO PUENTE", "TABLERO HORMIGON",
+         "TABLERO PREFABRICADO PUENTE", "TABLERO LOSA MIXTA",
+         "TRAMO CARRETERO", "TRAMO VIARIO", "TRAMO CARRETERA",
+         "TRAMO SUBTERRANEO CARRETERO", "TRAMO ELEVADO CARRETERO",
+         "TRAMO AUTOPISTA", "TRAMO URBANO VIAL", "TRAMO VIAL",
+         "SECTOR SUBTERRANEO VIAL", "TRAMO SUBTERRANEO VEHICULAR",
+         "PIQUE CONSTRUCTIVO VIAL", "POZO ACCESO VIAL", "POZO CONSTRUCCION VIAL",
+         "PLATAFORMA VIAL", "PLATAFORMA CARRETERO", "PLATAFORMA TRABAJO VIAL",
+         "ZONA TRABAJO VIAL", "AREA TRABAJO VIAL",
+         "PLATAFORMA FERROVIARIA ESTACION", "ANDENES METRO",
+         "TRAMO METRO SUBTERRANEO", "TRAMO METRO ELEVADO"], "vial")
+
+    # Vial — salas de servicio tunel con calificador para separar de comun
+    # (reduce vial→comun: SALA CCI, SALA TECNICA TUNEL → comun)
+    add(["SALA CCI CARRETERO", "SALA TECNICA CARRETERA", "SALA CCI CONCESION",
+         "SALA CONTROL TUNEL VIAL", "SALA MONITOREO CARRETERA",
+         "SALA OPERACIONES CARRETERA", "SALA TECNICA CONCESIONARIA",
+         "AREA SERVICIO CARRETERO", "SECTOR SERVICIO VIAL",
+         "SALA TECNICA CONCESION", "SALA MAQUINAS TUNEL VIAL",
+         "RELLENO ESTRUCTURAL", "RELLENO SELECCIONADO VIAL",
+         "RELLENO GRANULAR", "MATERIAL DE RELLENO"], "vial")
+
     # ── Protección fluvial y costera (MOP / DGA) ──────────────────────────────
     add(["PROTECCION DE RIBERA", "DEFENSA FLUVIAL", "MURO RIBERA",
          "ENROCADO RIBERA", "ESCOLLERA RIBERA",
@@ -606,14 +691,31 @@ def _generar_dataset() -> list[tuple[str, str]]:
 
     # Salas y equipos eléctricos en piques (SS/EE y sala de control)
     add(["SALA TABLEROS", "ZONA TABLEROS", "ZONA TDF",
-         "TDF 1", "TDF 2", "TDF 3", "TDF VIT", "TDF PROV",
+         "TDF 1", "TDF 2", "TDF 3", "TDF 4", "TDF 5",
+         "TDF VIT", "TDF VIT 1", "TDF VIT 2", "TDF VIT 3", "TDF VIT 4", "TDF VIT 5",
+         "TDF PROV", "TDFyA 1", "TDFyA 2", "TABLEROS AUXILIARES",
+         "TABLEROS DE FUERZA", "TABLEROS DE FUERZA Y AUXILIARES",
          "SALA TDF", "TABLERO DE DISTRIBUCION",
          "SALA VENTILACION", "CUARTO VENTILACION",
          "FAN PIQUE", "VENTILADOR TUNEL",
          "SALA BOMBAS PIQUE", "PLANTA ELEVADORA PIQUE",
          "SUBESTACION VITACURA", "SUBESTACION PROVIDENCIA",
          "SS VITACURA", "SS PROVIDENCIA",
+         "SS DE TRANSMISION VITACURA", "SS DE TRANSMISION PROVIDENCIA",
          "SALA SER LAT", "SALA CONTROL LAT"], "electrico")
+
+    # Electrico — salas/shafts/escaleras con calificador para separar de comun
+    # (reduce electrico→comun: SHAFT ELECTRICO, SALA VENTILACION, ESCALERA GATERA → comun)
+    add(["SHAFT ALTA TENSION", "SHAFT LAT", "SHAFT CABLES AT",
+         "SHAFT GALERIA ELECTRICA", "SHAFT CABLES TUNEL",
+         "ESCALERA GATERA PIQUE", "ESCALERA GATERA TUNEL",
+         "ESCALERA SERVICIO PIQUE", "ESCALERA ACCESO PIQUE",
+         "ESCALA PIQUE", "ESCALERA INTERIOR PIQUE",
+         "SALA VENTILACION PIQUE", "CUARTO VENTILACION PIQUE",
+         "SALA VENTILACION TUNEL ELECTRICO", "CUARTO VENTILACION ELECTRICO",
+         "SALA VENTILACION LAT", "VENTILACION GALERIA ELECTRICA",
+         "CUARTO ELECTRICO PIQUE", "CUARTO ELECTRICO TUNEL",
+         "SALA TECNICA PIQUE", "SALA TECNICA LAT"], "electrico")
 
     # Ventilación de galería eléctrica (jet fans + extractores)
     # IDs FAN1..FAN23 vienen del proyecto Vitacura (STM38109 Tabla 4.2)
@@ -643,6 +745,12 @@ def _generar_dataset() -> list[tuple[str, str]]:
          "INYECCION DE CEMENTO", "JET GROUTING",
          "MEJORAMIENTO SUELO DINAMICO", "COMPACTACION DINAMICA",
          "COLCHON GRANULAR", "COLCHON DRENANTE"], "vial")
+
+    # Minería — piques y galerías mineras NO son LAT eléctrica
+    add(["PIQUE MINERO", "PIQUE MINA", "PIQUE EXTRACCION MINERAL",
+         "PIQUE VENTILACION MINA", "GALERIA MINERA", "GALERIA MINA",
+         "TUNEL MINERO", "TUNEL DE MINA", "RAMPA MINA",
+         "CHIMENEA MINERA", "RAJO ABIERTO", "TUNEL DE EXPLORACION MINERA"], "vial")
 
     return datos
 
@@ -715,7 +823,9 @@ def main() -> None:
 
     modelo = construir_modelo()
     scores = cross_val_score(modelo, X, y, cv=cv, scoring="accuracy")
-    print(f"\nCV accuracy: {scores.mean():.4f} ± {scores.std():.4f}")
+    cv_mean = float(scores.mean())
+    cv_std = float(scores.std())
+    print(f"\nCV accuracy: {cv_mean:.4f} ± {cv_std:.4f}")
 
     y_cv = cross_val_predict(modelo, X, y, cv=cv)
     print("\nConfusion matrix (CV):")
@@ -727,16 +837,48 @@ def main() -> None:
         pct = err / cm[i].sum() * 100
         print(f"{c:>10}  {row}   err={err}/{cm[i].sum()} ({pct:.0f}%)")
 
-    modelo.fit(X, y)
-    y_pred = modelo.predict(X)
-    print("\nClasificación sobre dataset completo:")
-    print(classification_report(y, y_pred, target_names=clases))
+    # CV per-class precision/recall/F1 — métricas honestas (no overfit)
+    print("\nCV precision/recall/F1 por clase (más honesto que sobre train):")
+    cv_report = classification_report(y, y_cv, target_names=clases, output_dict=True, zero_division=0)
+    print(classification_report(y, y_cv, target_names=clases, zero_division=0))
 
     if not args.eval:
         with open(PKL_PATH, "wb") as f:
-            pickle.dump(modelo, f, protocol=4)
+            pickle.dump(modelo.fit(X, y), f, protocol=4)
         kb = PKL_PATH.stat().st_size // 1024
-        print(f"Modelo guardado: {PKL_PATH}  ({kb} KB)")
+
+        # Metadata sidecar — no rompe pkl loading
+        dataset_hash = hashlib.sha256(
+            "\n".join(f"{n}|{c}" for n, c in datos).encode()
+        ).hexdigest()[:16]
+        meta = {
+            "trained_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+            "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "sklearn": sklearn.__version__,
+            "dataset_size": len(datos),
+            "dataset_hash": dataset_hash,
+            "classes": clases,
+            "class_counts": {c: y.count(c) for c in clases},
+            "cv_accuracy_mean": round(cv_mean, 4),
+            "cv_accuracy_std": round(cv_std, 4),
+            "cv_per_class": {
+                c: {k: round(v, 4) for k, v in cv_report[c].items() if k != "support"}
+                for c in clases
+            },
+            "model": {
+                "type": "TF-IDF char_wb(2,6) + word(1,2) + LogisticRegression",
+                "C": 10.0,
+                "class_weight": "balanced",
+                "confidence_threshold_used_in_inference": 0.60,
+            },
+            "edge_cases_pending": True,  # rellenado por _validar_edge_cases
+        }
+        META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        print(f"Modelo guardado:    {PKL_PATH}  ({kb} KB)")
+        print(f"Metadata guardada:  {META_PATH}")
+    else:
+        # En modo --eval, modelo aún se fit para edge cases
+        modelo.fit(X, y)
 
     _validar_edge_cases(modelo)
 
@@ -810,9 +952,29 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
         ("GALERIA DE EVACUACION", "vial"),
         ("CAMARA DE VENTILACION LONGITUDINAL", "vial"),
         ("TUBO PONIENTE", "vial"),
+        # Eléctrico — LAT subterránea (proyecto Vitacura-Providencia)
+        ("PIQUE 1", "electrico"),
+        ("PIQUE 9", "electrico"),
+        ("TUNEL LINER", "electrico"),
+        ("TDF VIT 1", "electrico"),
+        ("TDFyA 1", "electrico"),
+        ("SS VITACURA", "electrico"),
+        ("SS PROVIDENCIA", "electrico"),
+        ("JET FAN", "electrico"),
+        ("FAN.01", "electrico"),
+        ("FAN.23", "electrico"),
+        ("BROCAL DEFINITIVO", "electrico"),
+        ("PLATAFORMA 3", "electrico"),
+        ("ESCALA GATERA", "electrico"),
+        # Casos ambiguos — verificar que NO se confunden con electrico
+        ("TUNEL VEHICULAR", "vial"),     # túnel pero vial, no eléctrico
+        ("PIQUE MINERO", "vial"),         # pique pero minero (no LAT) → vial
+        ("CALZADA NORTE", "vial"),        # claramente vial
+        ("PISTA DE ATERRIZAJE", "vial"),  # pista aeroportuaria
     ]
     print("\nEdge cases:")
     ok = errores = 0
+    fallos = []
     for nombre, esperado in casos:
         n = _norm(nombre)
         pred = modelo.predict([n])[0]
@@ -822,8 +984,22 @@ def _validar_edge_cases(modelo: Pipeline) -> None:
             ok += 1
         else:
             errores += 1
-        print(f"  {status} {nombre:<28} → {pred:<10} ({proba:.2f})  esperado: {esperado}")
+            fallos.append({"input": nombre, "esperado": esperado,
+                           "obtenido": pred, "proba": round(float(proba), 3)})
+        print(f"  {status} {nombre:<32} → {pred:<10} ({proba:.2f})  esperado: {esperado}")
     print(f"\n  {ok}/{ok+errores} edge cases correctos")
+
+    # Actualizar metadata con resultados edge cases
+    if META_PATH.exists():
+        try:
+            meta = json.loads(META_PATH.read_text())
+            meta["edge_cases_pending"] = False
+            meta["edge_cases_total"] = ok + errores
+            meta["edge_cases_passed"] = ok
+            meta["edge_cases_failed"] = fallos
+            META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        except (OSError, json.JSONDecodeError):
+            pass
 
 
 if __name__ == "__main__":

@@ -25,9 +25,12 @@ from cubicador import (
     area_vanos_total,
     cubicar,
     cubicar_vial,
+    cubicar_electrico,
 )
 from presupuesto import cargar_precios, presupuestar
 from excel import exportar_excel
+
+PRECIOS_ELECTRICO_CSV = Path(__file__).parent / "precios_electrico.csv"
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -1399,3 +1402,252 @@ class TestExcel:
             if ws.cell(row=r, column=2).value
         ]
         assert len(nombres) >= 6
+
+
+# ─── cubicar_electrico ────────────────────────────────────────────────────────
+
+# Datos sintéticos: 3 piques + 2 tramos — geometría genérica (no Vitacura-specific)
+_PIQUES_TEST = [
+    {"id": 1, "profundidad_m": 20.0, "km_aprox": 0.0,   "notas": "Pique extremo inicio"},
+    {"id": 2, "profundidad_m": 15.0, "km_aprox": 0.3,   "notas": "Pique típico"},
+    {"id": 3, "profundidad_m": 18.0, "km_aprox": 0.6,   "notas": "Pique extremo término"},
+]
+_TRAMOS_TEST = [
+    {"id": 1, "entre_piques": "P1-P2", "longitud_m": 300.0, "km_inicio": 0.0, "km_fin": 0.3, "notas": ""},
+    {"id": 2, "entre_piques": "P2-P3", "longitud_m": 300.0, "km_inicio": 0.3, "km_fin": 0.6, "notas": ""},
+]
+_RESULTADO_VACIO = {"recintos": [], "muros": {}, "vanos": {"puertas": [], "ventanas": []}}
+
+_D_PIQUE = 4.0
+_D_TUNEL = 2.21
+_A_PIQUE = math.pi * (_D_PIQUE / 2) ** 2     # 12.566 m²
+_A_TUNEL = math.pi * (_D_TUNEL / 2) ** 2     # 3.836 m²
+_RADIER_PER_M = _D_TUNEL * 0.15              # 0.3315 m³/m
+_KG_SOPORTE = 20.0                            # kg/m estructura cables
+
+
+class TestCubicarElectrico:
+
+    @pytest.fixture(scope="class")
+    def cub(self):
+        return cubicar_electrico(
+            _RESULTADO_VACIO,
+            piques=_PIQUES_TEST,
+            tramos_tunel=_TRAMOS_TEST,
+            diametro_pique_m=_D_PIQUE,
+            diametro_tunel_m=_D_TUNEL,
+        )
+
+    @pytest.fixture(scope="class")
+    def partidas(self, cub):
+        return {p["partida"]: p for p in cub["partidas"]}
+
+    def test_tipo_es_electrico(self, cub):
+        assert cub["tipo"] == "electrico"
+
+    # ── Piques: geometría ─────────────────────────────────────────────────────
+
+    def test_pique_excavacion_volumen_total(self, partidas):
+        """3 piques: (20+15+18) × 12.566 = 668.5 m³"""
+        esperado = _A_PIQUE * (20.0 + 15.0 + 18.0)
+        assert partidas["excavacion_pique"]["cantidad"] == pytest.approx(esperado, rel=0.01)
+
+    def test_pique_liner_longitud_total(self, partidas):
+        """liner = suma de profundidades = 53 m"""
+        assert partidas["montaje_liner_pique"]["cantidad"] == pytest.approx(53.0, rel=0.01)
+
+    def test_pique_retiro_igual_a_excavacion(self, partidas):
+        assert partidas["retiro_excavacion_pique"]["cantidad"] == pytest.approx(
+            partidas["excavacion_pique"]["cantidad"], rel=0.01
+        )
+
+    def test_pique_brocal_gl_por_pique(self, partidas):
+        """1 gl por pique × 3 piques = 3"""
+        assert partidas["brocal_definitivo"]["cantidad"] == pytest.approx(3.0)
+
+    def test_pique_escalas_gl_por_pique(self, partidas):
+        assert partidas["montaje_escalas_plataformas"]["cantidad"] == pytest.approx(3.0)
+
+    def test_pique_gl_items_todos_presentes(self, partidas):
+        for k in ("refuerzo_losa_anillo_fondo", "construccion_dren_pique",
+                  "terminaciones_pique", "cobertura_pique", "refuerzo_apertura_pique"):
+            assert k in partidas, f"Falta partida GL: {k}"
+            assert partidas[k]["cantidad"] == pytest.approx(3.0)
+
+    # ── Piques: SS (subestaciones) ────────────────────────────────────────────
+
+    def test_ss_piques_auto_detectados_por_extremo(self, cub):
+        """P1 y P3 tienen 'extremo' en notas → se auto-detectan como SS."""
+        pq = cub["piques_qty"]
+        assert "montaje_estructura_cables" in pq[1]
+        assert "montaje_estructura_cables" in pq[3]
+
+    def test_pique_intermedio_sin_estructura_cables(self, cub):
+        """P2 no tiene 'extremo' → no es SS → sin estructura cables."""
+        assert "montaje_estructura_cables" not in cub["piques_qty"][2]
+
+    def test_ss_total_estructura_cables(self, partidas):
+        """2 SS × 500 kg = 1000 kg"""
+        assert partidas["montaje_estructura_cables"]["cantidad"] == pytest.approx(1000.0)
+
+    def test_ss_explicito_override(self):
+        """ss_pique_ids explícito sobreescribe auto-detección."""
+        cub = cubicar_electrico(
+            _RESULTADO_VACIO,
+            piques=_PIQUES_TEST,
+            tramos_tunel=_TRAMOS_TEST,
+            ss_pique_ids={2},  # forzar solo P2 como SS
+        )
+        pq = cub["piques_qty"]
+        assert "montaje_estructura_cables" in pq[2]
+        assert "montaje_estructura_cables" not in pq[1]
+        assert "montaje_estructura_cables" not in pq[3]
+
+    # ── Tramos: geometría ─────────────────────────────────────────────────────
+
+    def test_tramo_excavacion_volumen_total(self, partidas):
+        """2 tramos × 300m = 600m; 600 × 3.836 = 2301.7 m³"""
+        esperado = _A_TUNEL * 600.0
+        assert partidas["excavacion_tunel"]["cantidad"] == pytest.approx(esperado, rel=0.01)
+
+    def test_tramo_liner_longitud_total(self, partidas):
+        assert partidas["montaje_liner_tunel"]["cantidad"] == pytest.approx(600.0, rel=0.01)
+
+    def test_tramo_radier_volumen_total(self, partidas):
+        """600m × 0.3315 m³/m = 198.9 m³"""
+        esperado = _RADIER_PER_M * 600.0
+        assert partidas["radier_tunel"]["cantidad"] == pytest.approx(esperado, rel=0.01)
+
+    def test_tramo_estructura_cables_kg_total(self, partidas):
+        """600m × 20 kg/m = 12000 kg"""
+        assert partidas["estructura_cables_tunel"]["cantidad"] == pytest.approx(12000.0, rel=0.01)
+
+    def test_tramo_monitoreo_pernos_gl_por_tramo(self, partidas):
+        """1 gl por tramo × 2 tramos = 2"""
+        assert partidas["monitoreo_pernos"]["cantidad"] == pytest.approx(2.0)
+
+    # ── Diámetros custom ─────────────────────────────────────────────────────
+
+    def test_diametro_pique_custom(self):
+        """Pique Ø5.0m → área = π×2.5² = 19.63 m²."""
+        cub = cubicar_electrico(
+            _RESULTADO_VACIO,
+            piques=[{"id": 1, "profundidad_m": 10.0, "km_aprox": 0.0, "notas": "extremo"}],
+            tramos_tunel=[],
+            diametro_pique_m=5.0,
+        )
+        partidas = {p["partida"]: p for p in cub["partidas"]}
+        esperado = math.pi * 2.5 ** 2 * 10.0
+        assert partidas["excavacion_pique"]["cantidad"] == pytest.approx(esperado, rel=0.01)
+
+    def test_diametro_tunel_custom(self):
+        """Túnel Ø3.0m → área = π×1.5² = 7.07 m²."""
+        cub = cubicar_electrico(
+            _RESULTADO_VACIO,
+            piques=[],
+            tramos_tunel=[{"id": 1, "entre_piques": "P1-P2", "longitud_m": 100.0,
+                           "km_inicio": 0.0, "km_fin": 0.1, "notas": ""}],
+            diametro_tunel_m=3.0,
+        )
+        partidas = {p["partida"]: p for p in cub["partidas"]}
+        esperado = math.pi * 1.5 ** 2 * 100.0
+        assert partidas["excavacion_tunel"]["cantidad"] == pytest.approx(esperado, rel=0.01)
+
+    # ── Estructura interna ────────────────────────────────────────────────────
+
+    def test_piques_qty_contiene_todos(self, cub):
+        assert set(cub["piques_qty"].keys()) == {1, 2, 3}
+
+    def test_tramos_qty_contiene_todos(self, cub):
+        assert set(cub["tramos_qty"].keys()) == {1, 2}
+
+    def test_recintos_sin_area_vacio(self, cub):
+        assert cub["recintos_sin_area"] == []
+
+    def test_partidas_tienen_desglose(self, cub):
+        for p in cub["partidas"]:
+            assert "desglose" in p
+            assert len(p["desglose"]) > 0, f"Partida {p['partida']} sin desglose"
+
+
+# ─── excel_licitacion (básico) ────────────────────────────────────────────────
+
+@pytest.mark.skipif(
+    not PRECIOS_ELECTRICO_CSV.exists(),
+    reason="precios_electrico.csv no encontrado"
+)
+class TestExcelLicitacion:
+
+    def _cubicacion_minima(self):
+        return cubicar_electrico(
+            _RESULTADO_VACIO,
+            piques=_PIQUES_TEST,
+            tramos_tunel=_TRAMOS_TEST,
+        )
+
+    def test_cargar_precios_uf_default(self):
+        import csv
+        from excel_licitacion import cargar_precios_uf, UF_CLP
+        precios = cargar_precios_uf(PRECIOS_ELECTRICO_CSV)
+        assert "excavacion_pique" in precios
+        with open(PRECIOS_ELECTRICO_CSV, encoding="utf-8") as f:
+            for row in csv.DictReader(filter(lambda l: not l.startswith("#"), f)):
+                if row["partida"].strip() == "excavacion_pique":
+                    esperado = float(row["precio_clp"]) / UF_CLP
+                    assert precios["excavacion_pique"] == pytest.approx(esperado, rel=0.001)
+                    break
+
+    def test_cargar_precios_uf_custom_rate(self):
+        from excel_licitacion import cargar_precios_uf
+        precios_default = cargar_precios_uf(PRECIOS_ELECTRICO_CSV)
+        precios_custom = cargar_precios_uf(PRECIOS_ELECTRICO_CSV, uf_clp=40_000)
+        # Con UF más alta, el precio en UF es menor
+        assert precios_custom["excavacion_pique"] < precios_default["excavacion_pique"]
+
+    def test_exportar_genera_archivo(self, tmp_path):
+        from excel_licitacion import exportar_licitacion
+        cub = self._cubicacion_minima()
+        ruta = tmp_path / "test_licit.xlsx"
+        resultado = exportar_licitacion(cub, _RESULTADO_VACIO, ruta)
+        assert resultado.exists()
+        assert resultado.stat().st_size > 5000
+
+    def test_exportar_tiene_sheets_requeridas(self, tmp_path):
+        from excel_licitacion import exportar_licitacion
+        cub = self._cubicacion_minima()
+        ruta = tmp_path / "test_sheets.xlsx"
+        exportar_licitacion(cub, _RESULTADO_VACIO, ruta)
+        wb = load_workbook(ruta)
+        # Sin template: debe crear al menos Resumen Oferta + A) + B) + hojas de análisis
+        assert "Resumen Oferta" in wb.sheetnames
+        assert "A) Detalle Costo Directo" in wb.sheetnames
+        assert "Análisis de Precios" in wb.sheetnames
+        assert "Memoria de Cálculo" in wb.sheetnames
+
+    def test_exportar_uf_clp_afecta_precios(self, tmp_path):
+        from excel_licitacion import exportar_licitacion
+        cub = self._cubicacion_minima()
+        ruta1 = tmp_path / "licit_uf38500.xlsx"
+        ruta2 = tmp_path / "licit_uf40000.xlsx"
+        exportar_licitacion(cub, _RESULTADO_VACIO, ruta1, uf_clp=38_500)
+        exportar_licitacion(cub, _RESULTADO_VACIO, ruta2, uf_clp=40_000)
+        wb1 = load_workbook(ruta1); wb2 = load_workbook(ruta2)
+        # El header de Análisis de Precios debe mostrar la UF usada
+        ws1 = wb1["Análisis de Precios"]; ws2 = wb2["Análisis de Precios"]
+        header1 = str(ws1.cell(row=2, column=1).value or "")
+        header2 = str(ws2.cell(row=2, column=1).value or "")
+        # f"${uf:,.0f}" produce "38,500" o "40,000" (coma como separador de miles)
+        assert any(s in header1 for s in ("38,500", "38.500", "38500"))
+        assert any(s in header2 for s in ("40,000", "40.000", "40000"))
+
+    def test_exportar_utilidad_uf_override(self, tmp_path):
+        from excel_licitacion import exportar_licitacion, _COSTOS_IND_REF
+        cub = self._cubicacion_minima()
+        ruta = tmp_path / "licit_util.xlsx"
+        exportar_licitacion(cub, _RESULTADO_VACIO, ruta, utilidad_uf=5_000)
+        wb = load_workbook(ruta)
+        if "B) Detalle C. Ind., GG y Utilid" in wb.sheetnames:
+            ws = wb["B) Detalle C. Ind., GG y Utilid"]
+            # Fila 53, columna F (precio unitario UF) debe ser 5000
+            val = ws.cell(row=53, column=6).value
+            assert val == pytest.approx(5_000, rel=0.01), f"utilidad_uf no aplicada: {val}"
